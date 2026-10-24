@@ -1,0 +1,37 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code personal settings (team settings.json is committed)
+.claude/settings.local.json
+
+# Node
+node_modules/
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Java
+target/
+*.class
+.gradle/
+
+# Go / Rust
+bin/
+/target/
+
+# Logs
+*.log
