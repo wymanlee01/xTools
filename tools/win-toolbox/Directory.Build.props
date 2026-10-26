@@ -1,0 +1,16 @@
+<Project>
+  <!-- 所有项目共用的编译设置 -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- 在 Mac 上也能编译 Windows 项目（只能编译，不能运行） -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Mac 和 Windows 共用一个版本号；发布时 CI 用 -p:Version=<tag 版本> 覆盖 -->
+    <Version Condition="'$(Version)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../mac-toolbox/VERSION').Trim())</Version>
+    <!-- 版本号里不带提交哈希，界面上显示干净的 0.1.1 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>xTools</Company>
+    <Product>xTools</Product>
+  </PropertyGroup>
+</Project>

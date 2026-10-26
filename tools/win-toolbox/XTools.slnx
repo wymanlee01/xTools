@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/XTools.App/XTools.App.csproj" />
+    <Project Path="src/XTools.Core/XTools.Core.csproj" />
+    <Project Path="src/XTools.Platform/XTools.Platform.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/XTools.Core.Tests/XTools.Core.Tests.csproj" />
+  </Folder>
+</Solution>

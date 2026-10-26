@@ -16,7 +16,8 @@ Claude Code reads `CLAUDE.md` automatically for project conventions.
 
 | Tool | Description |
 |------|-------------|
-| [mac-toolbox](tools/mac-toolbox/) | macOS 菜单栏工具箱（xTools）：截图、贴图，后续加粘贴板 |
+| [mac-toolbox](tools/mac-toolbox/) | macOS 菜单栏工具箱（xTools）：截图、标注、贴图、OCR、录屏、粘贴板 |
+| [win-toolbox](tools/win-toolbox/) | xTools 的 Windows 版（C# + WPF），目前完成底座：托盘、设置、快捷键、自动更新 |
 
 ## Structure
 
