@@ -1,4 +1,5 @@
 import AppKit
+import ToolboxCore
 
 /// 截图遮罩上的交互视图：压暗、框选、窗口识别、调整手柄、放大镜取色
 /// 冻结画面由父视图的图层显示，这里只画遮罩和标记，鼠标移动时不用重画整张截图
@@ -24,6 +25,22 @@ final class SelectionView: NSView {
 
     /// 截图界面的单键快捷键（可在工具栏悬浮提示框里修改）
     private let shortcuts: ToolShortcuts
+    /// 截图设置（十字线、右键退出、双击动作等）
+    private let settings: ScreenshotSettings
+    /// 上一次按下“双击修饰键”的时间，用来判断双击
+    private var lastModifierTap: Date?
+    /// 只框选模式（OCR、录屏）：不显示标注工具栏，改用确认条
+    private let purpose: CapturePurpose?
+    private lazy var confirmBar: SelectionConfirmBar = {
+        let bar = SelectionConfirmBar(purpose: purpose ?? .ocr)
+        bar.onConfirm = { [weak self] in self?.session?.finish(.confirm) }
+        bar.onCancel = { [weak self] in self?.session?.finish(.cancel) }
+        addSubview(bar)
+        return bar
+    }()
+
+    /// 所在显示器
+    var displayID: CGDirectDisplayID { frozen.screen.displayID }
     /// 选区定下后显示的工具栏
     private let toolbar: AnnotationToolbar
     /// 选了标注工具后才创建；创建后选区锁定，不能再移动和调整
@@ -36,10 +53,13 @@ final class SelectionView: NSView {
 
     private var isDragging: Bool { dragStart != nil || moveOffset != nil || activeHandle != nil }
 
-    init(frozen: FrozenScreen, windowRects: [CGRect], shortcuts: ToolShortcuts, session: CaptureSession) {
+    init(frozen: FrozenScreen, windowRects: [CGRect], shortcuts: ToolShortcuts, settings: ScreenshotSettings,
+         purpose: CapturePurpose?, session: CaptureSession) {
         self.frozen = frozen
+        self.purpose = purpose
         self.shortcuts = shortcuts
-        toolbar = AnnotationToolbar(shortcuts: shortcuts)
+        self.settings = settings
+        toolbar = AnnotationToolbar(shortcuts: shortcuts, tipDelay: settings.tipDelay)
         self.windowRects = windowRects
         self.session = session
         super.init(frame: CGRect(origin: .zero, size: frozen.screen.frame.size))
@@ -108,7 +128,7 @@ final class SelectionView: NSView {
         guard canvas == nil else { return }
         let point = convert(event.locationInWindow, from: nil)
         if event.clickCount == 2, selection?.contains(point) == true {
-            session?.finish(.copy)
+            purpose == nil ? performDoubleClick() : session?.finish(.confirm)
             return
         }
         session?.willBeginSelection(in: self)
@@ -160,7 +180,22 @@ final class SelectionView: NSView {
 
     /// 工具栏放在选区下方右对齐；下方放不下放上方，再放不下放选区内底部
     private func layoutToolbar() {
-        guard let selection, !isDragging else { toolbar.isHidden = true; return }
+        guard let selection, !isDragging else {
+            toolbar.isHidden = true
+            if purpose != nil { confirmBar.isHidden = true }
+            return
+        }
+        // 只框选模式：选区下方放确认条
+        if purpose != nil {
+            let size = SelectionConfirmBar.size
+            var origin = CGPoint(x: selection.maxX - size.width, y: selection.minY - size.height - 6)
+            if origin.y < bounds.minY + 4 { origin.y = selection.maxY + 6 }
+            if origin.y + size.height > bounds.maxY - 4 { origin.y = selection.minY + 6 }
+            origin.x = min(max(origin.x, bounds.minX + 4), bounds.maxX - size.width - 4)
+            confirmBar.frame = CGRect(origin: origin, size: size)
+            confirmBar.isHidden = false
+            return
+        }
         let size = toolbar.preferredSize
         var origin = CGPoint(x: selection.maxX - size.width, y: selection.minY - size.height - 6)
         if origin.y < bounds.minY + 4 { origin.y = selection.maxY + 6 }
@@ -177,6 +212,7 @@ final class SelectionView: NSView {
         case .undo: canvas?.undo()
         case .save: session?.finish(.save)
         case .pin: session?.finish(.pin)
+        case .ocr: session?.finish(.ocr)
         case .cancel: session?.finish(.cancel)
         case .copy: session?.finish(.copy)
         }
@@ -212,8 +248,39 @@ final class SelectionView: NSView {
         toolbar.setUndoState(canUndo: canvas?.document.canUndo ?? false)
     }
 
+    /// 右键：默认退出截图；关掉“右键点击退出截图”后只取消当前选区
     override func rightMouseDown(with event: NSEvent) {
-        session?.finish(.cancel)
+        if settings.rightClickExit {
+            session?.finish(.cancel)
+        } else if canvas == nil, selection != nil {
+            clearSelection()
+        }
+    }
+
+    /// 双击选区：按设置里的“双击鼠标左键触发”执行
+    private func performDoubleClick() {
+        switch settings.doubleClickAction {
+        case .none: break
+        case .ocr: session?.finish(.ocr)
+        case .pin: session?.finish(.pin)
+        case .save: session?.finish(.save)
+        case .copy: session?.finish(.copy)
+        case .saveAndCopy: session?.finish(.saveAndCopy)
+        }
+    }
+
+    /// 连按两次设置里的修饰键（默认 Option）：保存截图并用指定 App 打开
+    override func flagsChanged(with event: NSEvent) {
+        let keys: [NSEvent.ModifierFlags] = [.option, .command, .control]
+        let target = keys[min(settings.doubleTapModifier, keys.count - 1)]
+        let pressed = event.modifierFlags.intersection([.option, .command, .control, .shift])
+        guard pressed == target, selection != nil else { return }
+        if let last = lastModifierTap, Date().timeIntervalSince(last) < 0.4 {
+            lastModifierTap = nil
+            session?.finish(.saveAndOpen)
+        } else {
+            lastModifierTap = Date()
+        }
     }
 
     /// 按位置切换光标样式：手柄上显示调整箭头，选区内显示手形
@@ -236,6 +303,16 @@ final class SelectionView: NSView {
     override func keyDown(with event: NSEvent) {
         let flags = event.modifierFlags
         let command = flags.contains(.command)
+        // 只框选模式：回车确认、Esc 取消、方向键移动，其他键不处理
+        if purpose != nil {
+            switch event.keyCode {
+            case 36, 76: if selection != nil { session?.finish(.confirm) }
+            case 53: session?.finish(.cancel)
+            case 123...126: nudge(keyCode: event.keyCode, step: flags.contains(.shift) ? 10 : 1)
+            default: break
+            }
+            return
+        }
         // 有选区时先查自定义单键快捷键（默认同 iShot：1~9 工具、空格保存、回车复制）
         if !command, selection != nil,
            let key = ToolShortcuts.key(characters: event.charactersIgnoringModifiers, keyCode: event.keyCode),
@@ -258,13 +335,14 @@ final class SelectionView: NSView {
         }
     }
 
-    /// 执行快捷键对应的操作；OCR、长截图还没做
+    /// 执行快捷键对应的操作；长截图还没做
     private func perform(_ action: ShortcutAction) {
         if let tool = action.tool { select(tool); return }
         switch action {
         case .save: session?.finish(.save)
         case .copy: session?.finish(.copy)
         case .pin: session?.finish(.pin)
+        case .ocr: session?.finish(.ocr)
         default: break
         }
     }
@@ -311,6 +389,12 @@ final class SelectionView: NSView {
         if let selection {
             if dragStart == nil, canvas == nil { drawHandles(for: selection) }
             drawSizeLabel(for: selection)
+        }
+        // 截图光标辅助十字线：框选前横竖两条线穿过光标
+        if settings.crosshair, selection == nil, let cursor {
+            NSColor.systemBlue.withAlphaComponent(0.6).setFill()
+            CGRect(x: 0, y: cursor.y.rounded() - 0.5, width: bounds.width, height: 1).fill()
+            CGRect(x: cursor.x.rounded() - 0.5, y: 0, width: 1, height: bounds.height).fill()
         }
         if showsMagnifier, let cursor {
             Magnifier.draw(image: frozen.image, cursor: cursor, viewBounds: bounds, scale: frozen.scale)

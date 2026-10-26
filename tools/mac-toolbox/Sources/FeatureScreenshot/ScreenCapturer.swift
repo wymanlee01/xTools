@@ -18,7 +18,7 @@ struct VisibleWindow {
 enum ScreenCapturer {
     /// 截取所有屏幕的完整画面
     @MainActor
-    static func captureAllScreens() async throws -> [FrozenScreen] {
+    static func captureAllScreens(showsCursor: Bool = false) async throws -> [FrozenScreen] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         var result: [FrozenScreen] = []
         for display in content.displays {
@@ -26,7 +26,7 @@ enum ScreenCapturer {
             let config = SCStreamConfiguration()
             config.width = Int(screen.frame.width * screen.backingScaleFactor)
             config.height = Int(screen.frame.height * screen.backingScaleFactor)
-            config.showsCursor = false
+            config.showsCursor = showsCursor
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
             result.append(FrozenScreen(screen: screen, image: image))

@@ -1,5 +1,6 @@
 import AppKit
 import Testing
+import ToolboxCore
 @testable import FeaturePin
 
 struct PinRulesTests {
@@ -164,5 +165,17 @@ struct PinPasteboardTests {
         board.clearContents()
         #expect(PinManager.image(from: board) == nil)
         board.releaseGlobally()
+    }
+}
+
+struct PinSettingsTests {
+    @Test func 默认值和iShot一致() {
+        let defaults = UserDefaults(suiteName: "xtools.tests.\(UUID().uuidString)")!
+        let settings = PinSettings(store: SettingsStore(defaults: defaults).scoped("pin"))
+        #expect(settings.showsControls && settings.doubleClickClose && !settings.pinnedToOneSpace)
+        #expect(settings.cornerRadius == 8)
+        #expect(settings.defaultOpacity == 1)
+        #expect(settings.pasteHotkey?.displayName == "F3")
+        #expect(settings.toggleHotkey?.displayName == "⇧F3")
     }
 }

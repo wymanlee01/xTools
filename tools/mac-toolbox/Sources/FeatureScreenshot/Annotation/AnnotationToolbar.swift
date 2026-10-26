@@ -4,7 +4,7 @@ import AppKit
 enum ToolbarAction {
     case selectTool(AnnotationTool)
     case styleChanged(AnnotationStyle)
-    case undo, save, cancel, copy, pin
+    case undo, save, cancel, copy, pin, ocr
 }
 
 /// 截图工具栏，尺寸、按钮顺序、样式栏布局都按 iShot 的界面1:1 复刻：
@@ -33,8 +33,13 @@ final class AnnotationToolbar: NSView {
     private var tipButton: IconButton?
     private var tipHideTimer: Timer?
 
-    init(shortcuts: ToolShortcuts) {
+    /// 鼠标停在按钮上多久后弹出提示框（设置里的“工具栏弹窗响应时间”）
+    private let tipDelay: TimeInterval
+    private var tipShowTimer: Timer?
+
+    init(shortcuts: ToolShortcuts, tipDelay: TimeInterval = 0.5) {
         self.shortcuts = shortcuts
+        self.tipDelay = tipDelay
         super.init(frame: CGRect(origin: .zero, size: Self.mainSize))
         appearance = NSAppearance(named: .darkAqua)
         buildMainBar()
@@ -95,7 +100,7 @@ final class AnnotationToolbar: NSView {
     // MARK: - 主工具栏
 
     private func buildMainBar() {
-        // 顺序、提示文字、提示框尺寸都和 iShot 一致；OCR、长截图功能还没做，按钮置灰占位
+        // 顺序、提示文字、提示框尺寸都和 iShot 一致；长截图功能还没做，按钮置灰占位
         typealias Item = (symbol: String, tip: TipSpec, tool: AnnotationTool?, action: ToolbarAction?, enabled: Bool)
         func shortcut(_ title: String, _ action: ShortcutAction, width: CGFloat = 120) -> TipSpec {
             TipSpec(title: title, size: CGSize(width: width, height: 70), body: .shortcut(action, note: nil))
@@ -114,7 +119,7 @@ final class AnnotationToolbar: NSView {
             ("arrow.uturn.backward",
              TipSpec(title: "撤销工具", size: CGSize(width: 154, height: 90),
                      body: .lines(["上一步快捷键 : ⌘Z", "下一步快捷键 : ⇧⌘Z"])), nil, .undo, true),
-            ("text.viewfinder", shortcut("OCR工具", .ocr), nil, nil, false),
+            ("text.viewfinder", shortcut("OCR工具", .ocr), nil, .ocr, true),
             ("xmark",
              TipSpec(title: "取消截图", size: CGSize(width: 110, height: 90),
                      body: .lines(["快捷键 : ESC", "或者右键点击"])), nil, .cancel, true),
@@ -139,7 +144,15 @@ final class AnnotationToolbar: NSView {
             let tip = item.tip
             button.onHover = { [weak self, weak button] inside in
                 guard let self, let button else { return }
-                inside ? self.showTip(tip, for: button) : self.scheduleHideTip()
+                self.tipShowTimer?.invalidate()
+                guard inside else { self.scheduleHideTip(); return }
+                // 停留“弹窗响应时间”后再弹出
+                self.tipShowTimer = Timer.scheduledTimer(withTimeInterval: self.tipDelay, repeats: false) { [weak self, weak button] _ in
+                    Task { @MainActor in
+                        guard let self, let button else { return }
+                        self.showTip(tip, for: button)
+                    }
+                }
             }
             mainBar.addSubview(button)
         }

@@ -116,7 +116,7 @@ final class PinView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 { controller?.close() }
+        if event.clickCount == 2, controller?.doubleClickCloses == true { controller?.close() }
     }
 
     override func scrollWheel(with event: NSEvent) {

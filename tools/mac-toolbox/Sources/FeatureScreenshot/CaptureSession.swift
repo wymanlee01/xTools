@@ -1,4 +1,5 @@
 import AppKit
+import ToolboxCore
 
 /// 一次截图的产出
 struct CaptureOutput {
@@ -7,6 +8,8 @@ struct CaptureOutput {
     let frame: CGRect?
     /// 图片像素 / 点
     let scale: CGFloat
+    /// 选区所在的显示器（录屏要用）
+    let displayID: CGDirectDisplayID
 }
 
 /// 遮罩窗口：盖住整块屏幕，能成为 key window 才收得到键盘事件
@@ -17,10 +20,18 @@ final class OverlayWindow: NSWindow {
 /// 一次截图的完整过程：每块屏幕一个遮罩窗口，结束时统一关闭
 @MainActor
 final class CaptureSession {
-    enum Result {
+    enum Result: Equatable {
         case copy, save, cancel
         /// 贴到屏幕上（放在选区原来的位置）
         case pin
+        /// 保存至本地和剪切板（双击动作）
+        case saveAndCopy
+        /// 保存后用设置里的 App 打开（双击修饰键）
+        case saveAndOpen
+        /// 识别文字（工具栏 OCR 按钮 / O 键 / 双击动作）
+        case ocr
+        /// 只框选模式下确认选区（OCR 全局快捷键、录屏）
+        case confirm
         /// 复制取到的颜色文本（HEX 或 RGB）
         case copyColor(String)
     }
@@ -30,7 +41,9 @@ final class CaptureSession {
     private var activeView: SelectionView?
     private let onFinish: (Result, CaptureOutput?) -> Void
 
-    init(screens: [FrozenScreen], windows visible: [VisibleWindow], shortcuts: ToolShortcuts,
+    /// purpose 不为空时是“只框选”模式（OCR、录屏）：不显示标注工具栏，选区下方显示确认条
+    init(screens: [FrozenScreen], windows visible: [VisibleWindow], shortcuts: ToolShortcuts, settings: ScreenshotSettings,
+         purpose: CapturePurpose? = nil,
          onFinish: @escaping (Result, CaptureOutput?) -> Void) {
         self.onFinish = onFinish
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
@@ -51,7 +64,8 @@ final class CaptureSession {
             container.wantsLayer = true
             container.layer?.contents = frozen.image
             container.layer?.contentsGravity = .resize
-            let view = SelectionView(frozen: frozen, windowRects: rects, shortcuts: shortcuts, session: self)
+            let view = SelectionView(frozen: frozen, windowRects: rects, shortcuts: shortcuts, settings: settings, purpose: purpose,
+                                     session: self)
             view.autoresizingMask = [.width, .height]
             container.addSubview(view)
             window.contentView = container
@@ -83,9 +97,10 @@ final class CaptureSession {
         var output: CaptureOutput?
         let view = activeView ?? views.first { $0.selection != nil }
         switch result {
-        case .copy, .save, .pin:
+        case .copy, .save, .pin, .saveAndCopy, .saveAndOpen, .ocr, .confirm:
             if let view, let image = view.croppedImage() {
-                output = CaptureOutput(image: image, frame: view.selectionOnScreen, scale: view.pixelScale)
+                output = CaptureOutput(image: image, frame: view.selectionOnScreen, scale: view.pixelScale,
+                                       displayID: view.displayID)
             }
         case .cancel, .copyColor:
             break

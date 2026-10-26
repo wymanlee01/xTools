@@ -14,13 +14,19 @@ let package = Package(
         .target(name: "FeatureScreenshot", dependencies: ["ToolboxCore"]),
         // 功能模块：贴图（通过 ToolboxCore 里的 PinService 给截图模块用）
         .target(name: "FeaturePin", dependencies: ["ToolboxCore"]),
+        // 功能模块：OCR（实现 OCRService，通过 CaptureService 框选）
+        .target(name: "FeatureOCR", dependencies: ["ToolboxCore"]),
+        // 功能模块：录屏（通过 CaptureService 框选）
+        .target(name: "FeatureRecord", dependencies: ["ToolboxCore"]),
 
         // 应用入口：组装模块、菜单栏
-        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin"]),
+        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin", "FeatureOCR", "FeatureRecord"]),
 
         .testTarget(name: "ToolboxCoreTests", dependencies: ["ToolboxCore"]),
         .testTarget(name: "FeatureScreenshotTests", dependencies: ["FeatureScreenshot"]),
         .testTarget(name: "FeaturePinTests", dependencies: ["FeaturePin"]),
+        .testTarget(name: "FeatureOCRTests", dependencies: ["FeatureOCR"]),
+        .testTarget(name: "FeatureRecordTests", dependencies: ["FeatureRecord"]),
     ],
     swiftLanguageModes: [.v5]
 )

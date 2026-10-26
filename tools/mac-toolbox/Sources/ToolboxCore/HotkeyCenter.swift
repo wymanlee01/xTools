@@ -14,6 +14,51 @@ public struct Hotkey: Hashable, Sendable {
         self.modifierRaw = modifiers.intersection([.command, .option, .control, .shift]).rawValue
     }
 
+    /// 存进设置的格式："键码:修饰键原始值"
+    public var storageValue: String { "\(keyCode):\(modifierRaw)" }
+
+    public init?(storageValue: String) {
+        let parts = storageValue.split(separator: ":").compactMap { UInt($0) }
+        guard parts.count == 2 else { return nil }
+        self.init(keyCode: Int(parts[0]), modifiers: NSEvent.ModifierFlags(rawValue: parts[1]))
+    }
+
+    /// 显示用的文字，如 “⇧F3”“⌥A”
+    public var displayName: String {
+        var text = ""
+        if modifiers.contains(.control) { text += "⌃" }
+        if modifiers.contains(.option) { text += "⌥" }
+        if modifiers.contains(.shift) { text += "⇧" }
+        if modifiers.contains(.command) { text += "⌘" }
+        return text + Hotkey.keyName(for: Int(keyCode))
+    }
+
+    /// 键码转键名：功能键、特殊键查表，其余按当前键盘布局转成字符
+    static func keyName(for keyCode: Int) -> String {
+        let special: [Int: String] = [
+            kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
+            kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
+            kVK_F13: "F13", kVK_F14: "F14", kVK_F15: "F15", kVK_F16: "F16", kVK_F17: "F17", kVK_F18: "F18",
+            kVK_Space: "空格", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
+            kVK_Escape: "⎋", kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
+            kVK_Home: "↖", kVK_End: "↘", kVK_PageUp: "⇞", kVK_PageDown: "⇟",
+        ]
+        if let name = special[keyCode] { return name }
+        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return "?" }
+        let data = Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
+        var deadKeys: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length = 0
+        let status = data.withUnsafeBytes { buffer -> OSStatus in
+            guard let layout = buffer.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return -1 }
+            return UCKeyTranslate(layout, UInt16(keyCode), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
+                                  OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
+        }
+        guard status == noErr, length > 0 else { return "?" }
+        return String(utf16CodeUnits: chars, count: length).uppercased()
+    }
+
     /// 转成 Carbon 需要的修饰键位
     var carbonModifiers: UInt32 {
         var flags: UInt32 = 0

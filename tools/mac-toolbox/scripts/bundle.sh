@@ -31,6 +31,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <!-- 录屏时录制麦克风需要说明用途 -->
+    <key>NSMicrophoneUsageDescription</key><string>录屏时录制麦克风声音</string>
     <!-- 只在菜单栏显示，不出现在 Dock -->
     <key>LSUIElement</key><true/>
 </dict>

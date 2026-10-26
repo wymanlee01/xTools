@@ -1,23 +1,38 @@
 import AppKit
+import Carbon.HIToolbox
 import ToolboxCore
 
-/// 贴图设置（默认值同 iShot：圆角 8、不透明、显示控件）
+/// 贴图设置，键名都在 “pin.” 下，默认值同 iShot：圆角 8、不透明、显示控件、双击关闭、所有桌面可见
 struct PinSettings {
-    var cornerRadius: CGFloat = 8
-    var defaultOpacity: CGFloat = 1
-    var showsControls = true
+    let store: SettingsStore
+
+    /// 默认 F3 贴剪贴板、⇧F3 隐藏/显示全部（iShot 用 ⌥S、⌥H，这里避开）
+    static let defaultPasteHotkey = Hotkey(keyCode: kVK_F3, modifiers: [])
+    static let defaultToggleHotkey = Hotkey(keyCode: kVK_F3, modifiers: [.shift])
+
+    var pasteHotkey: Hotkey? { store.hotkey("hotkey.paste", default: Self.defaultPasteHotkey) }
+    var toggleHotkey: Hotkey? { store.hotkey("hotkey.toggle", default: Self.defaultToggleHotkey) }
+    /// 显示/隐藏贴图窗口按钮
+    var showsControls: Bool { store.bool("showsControls", default: true) }
+    var doubleClickClose: Bool { store.bool("doubleClickClose", default: true) }
+    /// 固定在单个桌面上（创建时有效）
+    var pinnedToOneSpace: Bool { store.bool("pinnedToOneSpace", default: false) }
+    var cornerRadius: CGFloat { CGFloat(store.double("cornerRadius", default: 8)) }
+    /// 默认透明度（界面显示 10~100%）
+    var defaultOpacity: CGFloat { CGFloat(store.double("defaultOpacity", default: 100)) / 100 }
 }
 
 /// 管理所有贴图，对外提供 PinService
 @MainActor
 final class PinManager: PinService {
     let pasteboard: PasteboardService
-    let settings = PinSettings()
+    let settings: PinSettings
     private var pins: [PinController] = []
     private var hidden = false
 
-    init(pasteboard: PasteboardService) {
+    init(pasteboard: PasteboardService, settings: PinSettings) {
         self.pasteboard = pasteboard
+        self.settings = settings
     }
 
     var count: Int { pins.count }

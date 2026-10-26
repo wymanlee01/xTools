@@ -20,6 +20,7 @@ final class PinController: NSObject {
     private weak var manager: PinManager?
 
     var showsControls: Bool { manager?.settings.showsControls ?? true }
+    var doubleClickCloses: Bool { manager?.settings.doubleClickClose ?? true }
 
     /// 显示图（含留边）的原始大小（点），窗口大小 = 它 × 缩放比例
     private var baseSize: CGSize {
@@ -44,7 +45,7 @@ final class PinController: NSObject {
             ?? CGRect(x: visible.midX - shown.width / 2, y: visible.midY - shown.height / 2,
                       width: shown.width, height: shown.height)
 
-        window = PinWindow(frame: windowFrame)
+        window = PinWindow(frame: windowFrame, allSpaces: !manager.settings.pinnedToOneSpace)
         view = PinView(frame: CGRect(origin: .zero, size: windowFrame.size), image: decoratedImage)
         super.init()
         view.controller = self
