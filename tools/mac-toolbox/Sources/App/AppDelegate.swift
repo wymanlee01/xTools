@@ -56,7 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         for module in modules {
-            module.menuItems().forEach { menu.addItem($0) }
+            // 没有菜单项的模块（只用快捷键）不加分隔线
+            let items = module.menuItems()
+            guard !items.isEmpty else { continue }
+            items.forEach { menu.addItem($0) }
             menu.addItem(.separator())
         }
         let settingsItem = NSMenuItem(title: "偏好设置…", action: #selector(openSettings), keyEquivalent: ",")

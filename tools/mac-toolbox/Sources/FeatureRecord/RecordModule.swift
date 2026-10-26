@@ -21,14 +21,8 @@ public final class RecordModule: ToolModule {
 
     public init() {}
 
-    public func menuItems() -> [NSMenuItem] {
-        let recording = recorder != nil
-        let title = recording ? "停止录屏" : "开始录屏"
-        let item = NSMenuItem(title: "\(title)  \(settings?.toggleHotkey?.displayName ?? "")", action: #selector(toggle),
-                              keyEquivalent: "")
-        item.target = self
-        return [item]
-    }
+    /// 菜单里不放入口，只用快捷键（默认 F5）；录制中菜单栏有单独的计时图标，点开可暂停、停止
+    public func menuItems() -> [NSMenuItem] { [] }
 
     public func start(context: ToolContext) {
         self.context = context
@@ -70,7 +64,7 @@ public final class RecordModule: ToolModule {
     // MARK: - 开始 / 停止
 
     /// 开始/停止录屏
-    @objc private func toggle() {
+    private func toggle() {
         if recorder != nil {
             stopRecording()
             return

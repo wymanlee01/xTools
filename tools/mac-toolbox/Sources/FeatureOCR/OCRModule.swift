@@ -16,12 +16,8 @@ public final class OCRModule: ToolModule, OCRService {
 
     public init() {}
 
-    public func menuItems() -> [NSMenuItem] {
-        let item = NSMenuItem(title: "OCR 识别文字  \(settings?.hotkey?.displayName ?? "")", action: #selector(startOCR),
-                              keyEquivalent: "")
-        item.target = self
-        return [item]
-    }
+    /// 菜单里不放入口，只用快捷键（默认 F4）
+    public func menuItems() -> [NSMenuItem] { [] }
 
     public func start(context: ToolContext) {
         self.context = context
@@ -55,7 +51,7 @@ public final class OCRModule: ToolModule, OCRService {
     }
 
     /// 全局快捷键：框选后识别；固定区域模式下直接识别上次的区域
-    @objc private func startOCR() {
+    private func startOCR() {
         guard let capture = context?.services.resolve(CaptureService.self) else { return }
         if settings?.fixedRegion == true, let lastFrame {
             capture.captureRegion(lastFrame) { [weak self] result in

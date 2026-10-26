@@ -15,11 +15,8 @@ public final class PinModule: ToolModule {
     public init() {}
 
     public func menuItems() -> [NSMenuItem] {
-        [
-            makeItem("贴剪贴板到屏幕  \(settings?.pasteHotkey?.displayName ?? "")", #selector(pinPasteboard)),
-            makeItem("隐藏/显示全部贴图  \(settings?.toggleHotkey?.displayName ?? "")", #selector(toggleAll)),
-            makeItem("关闭全部贴图", #selector(closeAll)),
-        ]
+        // 菜单只留常用的一项；隐藏/显示全部贴图用快捷键，关闭全部在贴图右键菜单里
+        [makeItem("贴剪贴板到屏幕  \(settings?.pasteHotkey?.displayName ?? "")", #selector(pinPasteboard))]
     }
 
     public func start(context: ToolContext) {
@@ -80,6 +77,5 @@ public final class PinModule: ToolModule {
         alert.runModal()
     }
 
-    @objc private func toggleAll() { manager?.toggleAll() }
-    @objc private func closeAll() { manager?.closeAll() }
+    private func toggleAll() { manager?.toggleAll() }
 }
