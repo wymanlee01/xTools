@@ -44,4 +44,5 @@ App ──▶ FeatureXxx ──▶ ToolboxCore
 
 ## 4. 快捷键
 
-iShot 默认全部用 ⌥+字母（⌥A 区域截图、⌥S 剪贴板贴图、⌥H 隐藏贴图等）。xTools 默认 ⌃⇧A，避免冲突。
+iShot 默认全部用 ⌥+字母（⌥A 区域截图、⌥S 剪贴板贴图、⌥H 隐藏贴图等）。xTools 默认 F1（不带修饰键），和 iShot 不冲突。
+Mac 键盘上 F1 默认是调亮度，没开「将 F1、F2 等键用作标准功能键」时要按 fn+F1。

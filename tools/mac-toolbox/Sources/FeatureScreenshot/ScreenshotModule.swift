@@ -9,8 +9,8 @@ public final class ScreenshotModule: ToolModule {
     public let title = "截图"
     public let requiredPermissions: [Permission] = [.screenRecording]
 
-    /// 默认快捷键 ⌃⇧A（iShot 默认用 ⌥+字母，这里避开）
-    static let defaultHotkey = Hotkey(keyCode: kVK_ANSI_A, modifiers: [.control, .shift])
+    /// 默认快捷键 F1（不带修饰键；系统没开“标准功能键”时需按 fn+F1）
+    static let defaultHotkey = Hotkey(keyCode: kVK_F1, modifiers: [])
 
     private var context: ToolContext?
     private var settings: SettingsStore?
@@ -19,7 +19,7 @@ public final class ScreenshotModule: ToolModule {
     public init() {}
 
     public func menuItems() -> [NSMenuItem] {
-        let item = NSMenuItem(title: "区域截图  ⌃⇧A", action: #selector(menuCapture), keyEquivalent: "")
+        let item = NSMenuItem(title: "区域截图  F1", action: #selector(menuCapture), keyEquivalent: "")
         item.target = self
         return [item]
     }
