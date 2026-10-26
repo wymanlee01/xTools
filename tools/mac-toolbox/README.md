@@ -17,7 +17,7 @@ open dist/xTools.app
 ```
 
 **发布新版本**（给「检查更新」用）：改 `VERSION` 里的版本号并提交，打 tag `v<版本号>` 推到 GitHub。
-GitHub Actions（`.github/workflows/mac-toolbox-release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 dmg 和 zip（说明取自 `scripts/release-notes.md`）。
+GitHub Actions（`.github/workflows/release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 dmg 和 zip，同一个 Release 里还会放 Windows 版（说明取自 `.github/release-notes.md`）。
 第一次需要在仓库 Settings → Secrets and variables → Actions 配两个密钥：
 `XTOOLS_CERT_P12_BASE64`（证书导出的 p12 再 base64）和 `XTOOLS_CERT_PASSWORD`（导出时设的密码）。
 本地手动发布也可以：`./scripts/release.sh` 生成 dmg 和 zip 后在 Releases 页面上传。

@@ -1,9 +1,11 @@
-# 推送 v* 的 tag 时：跑测试 → 用 xTools Dev 证书打包 → 建 GitHub Release 并上传 dmg（手动安装）和 zip（检查更新用）
-# 需要在仓库 Settings → Secrets and variables → Actions 里配两个密钥：
+# 推送 v* 的 tag 时同时发布 Mac 和 Windows 版，放进同一个 GitHub Release：
+#   release 任务（Mac）：跑测试 → 用 xTools Dev 证书打包 → 建 Release，上传 dmg（手动安装）和 zip（检查更新用）
+#   windows 任务：跑测试 → 发布 win-x64 → vpk 打包 → 把 Setup.exe 和更新包补传到同一个 Release
+# Mac 签名需要在仓库 Settings → Secrets and variables → Actions 里配两个密钥：
 #   XTOOLS_CERT_P12_BASE64  xTools Dev 证书导出的 p12，再 base64 编码
 #   XTOOLS_CERT_PASSWORD    导出 p12 时设的密码
 # 必须用同一张证书签名，旧版本的“检查更新”才会接受新版本
-name: mac-toolbox release
+name: xTools release
 
 on:
   push:
@@ -62,7 +64,7 @@ jobs:
         run: |
           VERSION=$(tr -d '[:space:]' < VERSION)
           # 说明：安装步骤 + 自动生成的更新内容
-          cat scripts/release-notes.md > "$RUNNER_TEMP/notes.md"
+          cat ../../.github/release-notes.md > "$RUNNER_TEMP/notes.md"
           gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body >> "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" "dist/xTools-$VERSION.dmg" "dist/xTools-$VERSION.zip" \
             --title "xTools $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
@@ -70,3 +72,41 @@ jobs:
       - name: 删除临时钥匙串
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/xtools.keychain-db" || true
+
+  windows:
+    # 等 Mac 任务建好 Release 再往里补传文件
+    needs: release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: tools/win-toolbox
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: 单元测试
+        run: dotnet test
+
+      - name: 发布 win-x64
+        # 不自带 .NET 运行时（安装包约 16 MB），用户电脑上没有时安装程序会自动下载
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet publish src/XTools.App -c Release -r win-x64 --self-contained false -p:Version="$VERSION" -o publish
+
+      - name: 打安装包
+        # vpk 版本要和程序里引用的 Velopack 一致；不生成免安装 zip，避免和 Mac 的 zip 混淆
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet tool install -g vpk --version 1.2.161
+          vpk pack --packId xTools --packVersion "$VERSION" --packDir publish --mainExe xTools.exe \
+            --packTitle xTools --packAuthors xTools --runtime win-x64 --framework net10.0-x64-desktop \
+            --noPortable --shortcuts StartMenuRoot --outputDir releases
+
+      - name: 上传到 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" releases/* --clobber
