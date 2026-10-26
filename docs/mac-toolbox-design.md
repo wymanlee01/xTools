@@ -60,3 +60,11 @@ Mac 键盘上 F1 默认是调亮度，没开「将 F1、F2 等键用作标准功
 | 面板 | `.nonactivatingPanel` 浮动面板，不抢前台应用的焦点；粘贴 = 写回剪贴板 + 收起 + CGEvent 模拟 ⌘V（需辅助功能权限） |
 | 样式 | 参考 PasteNow 官网公开截图（pastenow.app 的 main-screen 图）：默认贴屏幕右侧全高，可拖动、缩放并记住位置；毛玻璃圆角（`maskImage` 裁圆角）；顶栏图钉 / 贴右侧 / 搜索 / 齿轮；胶囊分类；统一 80 点高的圆角卡片（图标、最多三行内容并上下居中、右上时间、右下 ⌘N），左右边距相同，始终用浮动滚动条；颜色值铺色、代码黑底、图片缩略图；底栏条数。界面和图标自己实现，没有用它的资源 |
 | 模块协作 | 图片“贴到屏幕”走 `PinService`；截图等写入时带的来源标记显示为“来自截图” |
+
+## 6. 检查更新
+
+| 部分 | 设计 |
+|---|---|
+| 来源 | `AppUpdater` 读 GitHub Releases 最新正式版（`/repos/<仓库>/releases/latest`），tag 去掉 v 后按段比较版本号 |
+| 安装 | 下载 zip → `ditto` 解压 → 用当前 app 的签名要求（同证书 + 同 bundle id）校验 → `replaceItemAt` 替换 → 等进程退出后重新打开 |
+| 发布 | 推 `v*` tag 触发 GitHub Actions：测试 → 导入 `xTools Dev` 证书到临时钥匙串 → `release.sh` 打包 → 建 Release 上传 zip |
