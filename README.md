@@ -16,7 +16,7 @@ Claude Code reads `CLAUDE.md` automatically for project conventions.
 
 | Tool | Description |
 |------|-------------|
-| _(none yet)_ | Ask Claude: "add a new tool under tools/ that …" |
+| [mac-toolbox](tools/mac-toolbox/) | macOS 菜单栏工具箱（xTools）：截图、贴图，后续加粘贴板 |
 
 ## Structure
 
