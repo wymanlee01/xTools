@@ -17,7 +17,7 @@ open dist/xTools.app
 ```
 
 **发布新版本**（给「检查更新」用）：改 `VERSION` 里的版本号并提交，打 tag `v<版本号>` 推到 GitHub。
-GitHub Actions（`.github/workflows/release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 dmg 和 zip，同一个 Release 里还会放 Windows 版（说明取自 `.github/release-notes.md`）。
+GitHub Actions（`.github/workflows/release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 dmg 和 zip（说明取自 `.github/release-notes.md`）。
 第一次需要在仓库 Settings → Secrets and variables → Actions 配两个密钥：
 `XTOOLS_CERT_P12_BASE64`（证书导出的 p12 再 base64）和 `XTOOLS_CERT_PASSWORD`（导出时设的密码）。
 本地手动发布也可以：`./scripts/release.sh` 生成 dmg 和 zip 后在 Releases 页面上传。
@@ -62,7 +62,7 @@ rm key.pem cert.pem xtools.p12 cert.cnf
 | 功能 | 操作 |
 |---|---|
 | 区域截图 | F1 或菜单栏「截图」（没开“将 F1、F2 等键用作标准功能键”时按 fn+F1） |
-| 框选 | 拖拽；单击选中光标下的窗口（没有窗口则选整屏）；拖动选区内部可移动 |
+| 框选 | 拖拽；窗口识别：光标停在窗口上会高亮该窗口，单击直接按窗口大小选中（没有窗口则选整屏）；拖动选区内部可移动 |
 | 调整选区 | 拖动 8 个手柄改大小；方向键移动 1 点，⇧+方向键移动 10 点 |
 | 放大镜 / 取色 | 框选前和拖拽时跟随光标显示；框选前按 C 复制 HEX，⇧C 复制 RGB（颜色按 sRGB 换算） |
 | 标注工具栏 | 按 iShot 1:1 复刻尺寸和布局；选区定下后出现在选区下方；选了工具后选区锁定 |
@@ -124,6 +124,19 @@ rm key.pem cert.pem xtools.p12 cert.cnf
 | 自动粘贴 | 需要「辅助功能」权限模拟 ⌘V；没授权时只拷贝，提示手动按 ⌘V |
 | 隐私 | 密码管理器标记为隐藏 / 临时的内容始终不记；忽略列表默认含钥匙串、密码、1Password、Bitwarden、LastPass |
 
+### 分屏
+
+自己设计实现（功能范围参考 Magnet 公开的说明），需要「辅助功能」权限。快捷键对当前前台窗口生效，也可以从菜单栏「窗口分屏 ▸」选择：每项前面有示意图标、右侧显示快捷键；只有一块屏幕时的换显示器、窗口已经在那个位置的布局、没有可还原的位置会变灰；最后一项「忽略“当前应用”」可以让某个应用不参与分屏。
+
+| 动作 | 默认快捷键 |
+|---|---|
+| 左 / 右 / 上 / 下半屏 | ⌃⌥← / → / ↑ / ↓ |
+| 左上 / 右上 / 左下 / 右下四分之一 | ⌃⌥U / I / J / K |
+| 移到下一个 / 上一个显示器 | ⌃⌥⌘→ / ←（在新屏幕上保持相同的相对位置和比例） |
+| 最大化 / 居中 / 还原 | ⌃⌥↩ / ⌃⌥C / ⌃⌥⌫（还原到分屏前的位置和大小） |
+
+拖到屏幕边缘吸附还没做（S2）。
+
 ## 偏好设置
 
 菜单栏「偏好设置…」（⌘,）打开；隐藏菜单栏图标后，再次打开 xTools.app 即可打开。布局按 iShot 复刻（900×700，左侧菜单）。
@@ -137,6 +150,7 @@ rm key.pem cert.pem xtools.p12 cert.cnf
 | 录屏 | 开始/停止、暂停/恢复快捷键；保存路径、保存方式、完成时动作；格式、帧率、倒计时、光标、点击、系统声音、麦克风 |
 | 粘贴板 | 打开面板快捷键；最多保存条数、保存天数、是否记录图片 / 文件；自动粘贴、默认纯文本；忽略的应用；清空历史 |
 | OCR | 全局快捷键；取消换行、始终保存到剪切板、不打开窗口直接保存到剪切板 |
+| 分屏 | 每个动作的快捷键（可清空）；窗口间距 0～20 点；忽略的应用；辅助功能权限状态 |
 | 通用 | 隐藏菜单栏图标、开机自启动（需要应用放在“应用程序”文件夹）、检查更新（每天启动时自动查一次，可关；发现新版本可安装并重启或跳过）、权限、初始化 |
 
 > 和 iShot 默认一致：复制、保存的截图默认加 18 点阴影和 18 点圆角，可在「截图 · 偏好设置」关掉。
@@ -152,7 +166,8 @@ Sources/
 ├── FeaturePin/         # 贴图模块（实现 PinService，截图模块通过协议调用）
 ├── FeatureOCR/         # OCR 模块（实现 OCRService，通过 CaptureService 框选）
 ├── FeatureRecord/      # 录屏模块（通过 CaptureService 框选，ScreenCaptureKit + AVAssetWriter）
-└── FeatureClipboard/   # 粘贴板模块（底座的剪贴板监听 + PinService）
+├── FeatureClipboard/   # 粘贴板模块（底座的剪贴板监听 + PinService）
+└── FeatureWindow/      # 分屏模块（辅助功能接口移动和缩放窗口）
 ```
 
 新增功能模块：建 `Sources/FeatureXxx/`，实现 `ToolModule`，在 `Package.swift` 和 `AppDelegate.modules` 各加一行。

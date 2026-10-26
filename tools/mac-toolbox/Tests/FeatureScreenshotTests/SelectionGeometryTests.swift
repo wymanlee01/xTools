@@ -30,4 +30,19 @@ struct SelectionGeometryTests {
                                               screenFrame: CGRect(x: 1440, y: 0, width: 1920, height: 1000))
         #expect(rect == CGRect(x: 60, y: 700, width: 300, height: 200))
     }
+
+    @Test func 窗口识别排除程序坞的整屏透明窗口() {
+        let fullScreen = CGSize(width: 1920, height: 1080)
+        #expect(!ScreenCapturer.isSelectable(layer: 20, alpha: 1, size: fullScreen, bundleID: "com.apple.dock"))
+        #expect(ScreenCapturer.isSelectable(layer: 0, alpha: 1, size: CGSize(width: 800, height: 600), bundleID: "com.tencent.xinWeChat"))
+    }
+
+    @Test func 窗口识别排除桌面层级和透明或过小的窗口() {
+        let size = CGSize(width: 800, height: 600)
+        #expect(!ScreenCapturer.isSelectable(layer: -2147483601, alpha: 1, size: size, bundleID: nil))
+        #expect(!ScreenCapturer.isSelectable(layer: 1000, alpha: 0.003, size: size, bundleID: nil))
+        #expect(!ScreenCapturer.isSelectable(layer: 0, alpha: 1, size: CGSize(width: 1, height: 1), bundleID: nil))
+        // 菜单栏（层级 24）可以选中
+        #expect(ScreenCapturer.isSelectable(layer: 24, alpha: 1, size: CGSize(width: 1920, height: 30), bundleID: nil))
+    }
 }

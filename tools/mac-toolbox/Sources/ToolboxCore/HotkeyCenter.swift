@@ -68,14 +68,43 @@ public struct Hotkey: Hashable, Sendable {
         if modifiers.contains(.shift) { flags |= UInt32(shiftKey) }
         return flags
     }
+
+    /// 菜单项的 keyEquivalent 字符：设上后菜单右侧会用系统样式显示这个快捷键（如 ⌃⌥←）
+    /// 再配合 modifiers 设 keyEquivalentModifierMask；转不了的按键返回 nil
+    public var menuKeyEquivalent: String? {
+        func function(_ key: Int) -> String { String(Character(UnicodeScalar(UInt16(key))!)) }
+        let fKeys = [kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10, kVK_F11, kVK_F12]
+        switch Int(keyCode) {
+        case kVK_LeftArrow: return function(NSLeftArrowFunctionKey)
+        case kVK_RightArrow: return function(NSRightArrowFunctionKey)
+        case kVK_UpArrow: return function(NSUpArrowFunctionKey)
+        case kVK_DownArrow: return function(NSDownArrowFunctionKey)
+        case kVK_Return: return "\r"
+        case kVK_Delete: return "\u{8}"
+        case kVK_ForwardDelete: return function(NSDeleteFunctionKey)
+        case kVK_Escape: return "\u{1b}"
+        case kVK_Tab: return "\t"
+        case kVK_Space: return " "
+        case let key where fKeys.contains(key): return function(NSF1FunctionKey + fKeys.firstIndex(of: key)!)
+        default:
+            let name = Hotkey.keyName(for: Int(keyCode))
+            return name.count == 1 && name != "?" ? name.lowercased() : nil
+        }
+    }
 }
 
 extension NSMenuItem {
-    /// 托盘菜单项后面显示快捷键文字。不设 keyEquivalent：设了的话菜单打开时按这个键，
-    /// 系统会先收起菜单再执行，截图就截不到菜单了（菜单打开时的快捷键由 HotkeyCenter.watchKeys 处理）
+    /// 托盘菜单项右侧用系统样式显示快捷键（转不成 keyEquivalent 的按键拼在标题后面）。
+    /// 菜单打开时按这个键由 HotkeyCenter.watchKeys 执行；托盘菜单的代理要拦住系统按 keyEquivalent 处理
+    /// （见 AppDelegate.menuHasKeyEquivalent），否则系统会先收起菜单再执行，截图就截不到菜单了
     public func setHotkey(_ hotkey: Hotkey?) {
         guard let hotkey else { return }
-        title += "  \(hotkey.displayName)"
+        if let key = hotkey.menuKeyEquivalent {
+            keyEquivalent = key
+            keyEquivalentModifierMask = hotkey.modifiers
+        } else {
+            title += "  \(hotkey.displayName)"
+        }
     }
 }
 
@@ -200,6 +229,11 @@ public final class HotkeyCenter {
             hotkey.modifiers == pressed && CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(hotkey.keyCode)) ? id : nil
         }
         return Set(ids)
+    }
+
+    /// 这个按键是不是已注册的快捷键
+    public func isRegistered(_ event: NSEvent) -> Bool {
+        registeredId(for: event) != nil
     }
 
     /// 按键对应的已注册快捷键 id（修饰键只比较 ⌘⌥⌃⇧）

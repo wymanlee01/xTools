@@ -114,7 +114,17 @@ final class SelectionView: NSView {
             window?.makeKeyAndOrderFront(nil)
             window?.makeFirstResponder(self)
         }
-        let point = convert(event.locationInWindow, from: nil)
+        updateHover(at: convert(event.locationInWindow, from: nil))
+    }
+
+    /// 遮罩刚显示时用当前鼠标位置（全局屏幕坐标）初始化高亮窗口
+    func hover(atScreenPoint point: CGPoint) {
+        guard let window else { return }
+        updateHover(at: convert(window.convertPoint(fromScreen: point), from: nil))
+    }
+
+    /// 记下光标位置；还没有选区时，高亮光标下最前面的窗口
+    private func updateHover(at point: CGPoint) {
         cursor = point
         if selection == nil {
             hoverWindow = windowRects.first { $0.contains(point) }
@@ -153,7 +163,10 @@ final class SelectionView: NSView {
             let moved = CGRect(origin: CGPoint(x: point.x - offset.x, y: point.y - offset.y), size: rect.size)
             selection = SelectionGeometry.clamp(moved, in: bounds)
         } else if let start = dragStart {
-            selection = SelectionGeometry.rect(from: start, to: point)
+            let rect = SelectionGeometry.rect(from: start, to: point)
+            // 单击时手抖动一两个点也会触发拖动；拖出一定距离才算框选，否则保留识别到的窗口，松手时选中它
+            guard rect.width > 3 || rect.height > 3 else { return }
+            selection = rect
             hoverWindow = nil
         }
         toolbar.isHidden = true

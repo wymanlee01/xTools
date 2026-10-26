@@ -41,16 +41,25 @@ enum ScreenCapturer {
         let myPid = ProcessInfo.processInfo.processIdentifier
 
         return list.compactMap { info in
-            // 层级 0~1000：普通窗口、浮动面板、Dock、菜单栏都能选中，桌面（负层级）除外
-            // 排除自己的遮罩窗口和全透明窗口
-            guard let layer = info[kCGWindowLayer as String] as? Int, (0...1000).contains(layer),
-                  (info[kCGWindowOwnerPID as String] as? Int32) != myPid,
-                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+            // 排除自己的遮罩窗口
+            guard let pid = info[kCGWindowOwnerPID as String] as? Int32, pid != myPid,
                   let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
-                  bounds.width > 20, bounds.height > 20 else { return nil }
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict) else { return nil }
+            let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+            guard isSelectable(layer: info[kCGWindowLayer as String] as? Int ?? -1,
+                               alpha: info[kCGWindowAlpha as String] as? Double ?? 1,
+                               size: bounds.size, bundleID: bundleID) else { return nil }
             return VisibleWindow(frame: bounds, owner: info[kCGWindowOwnerName as String] as? String ?? "")
         }
+    }
+
+    /// 某个窗口能不能被窗口识别选中
+    /// - 层级 0~1000：普通窗口、浮动面板、菜单栏都能选中，桌面（负层级）除外
+    /// - 程序坞在主屏上铺了一个整屏大小的透明窗口，层级比普通窗口高，不排除的话光标在哪都只能选中整屏
+    /// - 全透明、太小的窗口（比如某些工具放的 1×1 窗口）不选
+    static func isSelectable(layer: Int, alpha: Double, size: CGSize, bundleID: String?) -> Bool {
+        guard (0...1000).contains(layer), alpha > 0.05, size.width > 20, size.height > 20 else { return false }
+        return bundleID != "com.apple.dock"
     }
 }
 

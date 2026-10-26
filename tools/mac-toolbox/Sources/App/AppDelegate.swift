@@ -4,6 +4,7 @@ import FeatureOCR
 import FeaturePin
 import FeatureRecord
 import FeatureScreenshot
+import FeatureWindow
 import ToolboxCore
 
 /// 组装底座和各功能模块，生成菜单栏菜单和偏好设置窗口
@@ -21,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         RecordModule(),
         OCRModule(),
         ClipboardModule(),
+        WindowModule(),
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -66,22 +68,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         context?.hotkeys.stopWatchingKeys()
     }
 
+    /// 菜单打开时按到已注册的快捷键（F1 等）：不让系统按菜单项的 keyEquivalent 处理（会先收起菜单，截图截不到菜单），
+    /// 交给 HotkeyCenter.watchKeys 执行；其他按键（⌘,、⌘Q）照常找对应的菜单项
+    func menuHasKeyEquivalent(_ menu: NSMenu, for event: NSEvent, target: AutoreleasingUnsafeMutablePointer<AnyObject?>,
+                              action: UnsafeMutablePointer<Selector?>) -> Bool {
+        NSLog("[DBG] menuHasKeyEquivalent code=\(event.keyCode)")
+        guard context?.hotkeys.isRegistered(event) != true else { return false }
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard let item = menu.items.first(where: {
+            !$0.keyEquivalent.isEmpty && $0.keyEquivalent == event.charactersIgnoringModifiers?.lowercased()
+                && $0.keyEquivalentModifierMask == modifiers
+        }) else { return false }
+        target.pointee = item.target
+        action.pointee = item.action
+        return true
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        for module in modules {
-            // 没有菜单项的模块（只用快捷键）不加分隔线
-            let items = module.menuItems()
-            guard !items.isEmpty else { continue }
-            items.forEach { menu.addItem($0) }
-            menu.addItem(.separator())
-        }
-        let settingsItem = NSMenuItem(title: "偏好设置…", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-        let permissionItem = NSMenuItem(title: "检查权限…", action: #selector(checkPermissions), keyEquivalent: "")
-        permissionItem.target = self
-        menu.addItem(permissionItem)
-        menu.addItem(NSMenuItem(title: "退出 xTools", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        // 分三组：功能 / 设置 / 退出；每项都带图标，文字才能左对齐
+        modules.flatMap { $0.menuItems() }.forEach { menu.addItem($0) }
+        menu.addItem(.separator())
+        menu.addItem(makeItem("偏好设置…", "gearshape", #selector(openSettings), key: ","))
+        menu.addItem(makeItem("检查权限…", "lock.shield", #selector(checkPermissions)))
+        menu.addItem(.separator())
+        let quitItem = makeItem("退出 xTools", "power", #selector(NSApplication.terminate(_:)), key: "q")
+        quitItem.target = nil
+        menu.addItem(quitItem)
+    }
+
+    private func makeItem(_ title: String, _ symbol: String, _ action: Selector, key: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        return item
     }
 
     /// 偏好设置：各模块的页面 + 通用页

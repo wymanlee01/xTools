@@ -20,6 +20,7 @@ public final class ClipboardModule: ToolModule {
     public func menuItems() -> [NSMenuItem] {
         let item = NSMenuItem(title: "粘贴板", action: #selector(togglePanel), keyEquivalent: "")
         item.target = self
+        item.image = NSImage(systemSymbolName: "list.clipboard", accessibilityDescription: nil)
         item.setHotkey(settings?.hotkey)
         return [item]
     }

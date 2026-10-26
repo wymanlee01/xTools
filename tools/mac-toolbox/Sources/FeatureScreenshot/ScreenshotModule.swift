@@ -26,6 +26,7 @@ public final class ScreenshotModule: ToolModule, CaptureService {
     public func menuItems() -> [NSMenuItem] {
         let item = NSMenuItem(title: "截图", action: #selector(menuCapture), keyEquivalent: "")
         item.target = self
+        item.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: nil)
         item.setHotkey(settings?.captureHotkey)
         return [item]
     }

@@ -17,6 +17,7 @@ public final class PinModule: ToolModule {
     public func menuItems() -> [NSMenuItem] {
         // 菜单只留常用的一项；隐藏/显示全部贴图用快捷键，关闭全部在贴图右键菜单里
         let item = makeItem("贴图", #selector(pinPasteboard))
+        item.image = NSImage(systemSymbolName: "pin", accessibilityDescription: nil)
         item.setHotkey(settings?.pasteHotkey)
         return [item]
     }
