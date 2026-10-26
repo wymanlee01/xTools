@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var context: ToolContext?
     private var settingsWindow: SettingsWindowController?
+    private var updater: UpdateController?
 
     /// 新增功能模块只需加到这里
     private let modules: [ToolModule] = [
@@ -31,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupStatusItem()
         NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .xToolsOpenSettings, object: nil)
         statusItem?.isVisible = !context.settings.bool(GeneralSettingsPage.hideMenuBarIconKey, default: false)
+        let updater = UpdateController(settings: context.settings)
+        self.updater = updater
+        updater.checkOnLaunch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -77,7 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if settingsWindow == nil {
             let general = GeneralSettingsPage.make(
                 settings: context.settings,
+                currentVersion: updater?.currentVersion.description ?? "",
                 onMenuBarIconChange: { [weak self] hidden in self?.statusItem?.isVisible = !hidden },
+                onCheckUpdates: { [weak self] in self?.updater?.checkNow() },
                 onCheckPermissions: { [weak self] in self?.checkPermissions() },
                 onResetAll: { [weak self] in self?.resetAllSettings() })
             settingsWindow = SettingsWindowController(pages: modules.flatMap { $0.settingsPages() } + [general])

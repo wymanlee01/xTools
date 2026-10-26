@@ -9,9 +9,17 @@ macOS 菜单栏工具箱（应用名 xTools）。第一版：截图、贴图；�
 
 ```bash
 ./scripts/test.sh          # 单元测试
-./scripts/bundle.sh        # 生成 dist/xTools.app
+./scripts/bundle.sh        # 生成 dist/xTools.app（版本号取自 VERSION 文件）
 open dist/xTools.app
+./scripts/release.sh       # 生成发布包 dist/xTools-<版本>.zip
 ```
+
+**发布新版本**（给「检查更新」用）：
+1. 改 `VERSION` 里的版本号，运行 `./scripts/release.sh`（必须有 `xTools Dev` 证书）。
+2. 在 GitHub 仓库的 Releases 新建 tag `v<版本号>` 的正式版，上传生成的 zip，说明里写更新内容。
+
+旧版本会从 `https://api.github.com/repos/<仓库>/releases/latest` 取最新版，所以仓库要公开（或用 `UPDATE_REPO=owner/repo ./scripts/bundle.sh` 指向一个公开的发布仓库）。
+安装前会校验新版本的签名：必须和当前版本是同一张证书、同一个 bundle id，否则拒绝安装；临时签名的版本不能自动更新。
 
 只装命令行工具（没有 Xcode）也能构建。
 测试请用 `scripts/test.sh`：它显式指定了测试宏插件路径。直接跑 `swift test` 偶尔会报
@@ -125,7 +133,7 @@ rm key.pem cert.pem xtools.p12 cert.cnf
 | 录屏 | 开始/停止、暂停/恢复快捷键；保存路径、保存方式、完成时动作；格式、帧率、倒计时、光标、点击、系统声音、麦克风 |
 | 粘贴板 | 打开面板快捷键；最多保存条数、保存天数、是否记录图片 / 文件；自动粘贴、默认纯文本；忽略的应用；清空历史 |
 | OCR | 全局快捷键；取消换行、始终保存到剪切板、不打开窗口直接保存到剪切板 |
-| 通用 | 隐藏菜单栏图标、开机自启动（需要应用放在“应用程序”文件夹）、权限、初始化 |
+| 通用 | 隐藏菜单栏图标、开机自启动（需要应用放在“应用程序”文件夹）、检查更新（每天启动时自动查一次，可关；发现新版本可安装并重启或跳过）、权限、初始化 |
 
 > 和 iShot 默认一致：复制、保存的截图默认加 18 点阴影和 18 点圆角，可在「截图 · 偏好设置」关掉。
 
@@ -133,7 +141,8 @@ rm key.pem cert.pem xtools.p12 cert.cnf
 
 ```
 Sources/
-├── App/                # 入口：注册模块、菜单栏
+├── App/                # 入口：注册模块、菜单栏、通用设置、更新弹窗
+├── AppUpdater/         # 检查更新：GitHub Releases、下载、签名校验、替换安装
 ├── ToolboxCore/        # 底座：模块协议、快捷键、设置、权限、剪贴板、服务注册、PinService
 ├── FeatureScreenshot/  # 截图模块
 ├── FeaturePin/         # 贴图模块（实现 PinService，截图模块通过协议调用）

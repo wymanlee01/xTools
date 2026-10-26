@@ -21,8 +21,11 @@ let package = Package(
         // 功能模块：粘贴板（用底座的剪贴板监听和 PinService）
         .target(name: "FeatureClipboard", dependencies: ["ToolboxCore"]),
 
+        // 检查更新：从 GitHub Releases 下载新版本、校验签名、替换安装（不依赖界面）
+        .target(name: "AppUpdater"),
+
         // 应用入口：组装模块、菜单栏
-        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin", "FeatureOCR", "FeatureRecord", "FeatureClipboard"]),
+        .executableTarget(name: "App", dependencies: ["ToolboxCore", "AppUpdater", "FeatureScreenshot", "FeaturePin", "FeatureOCR", "FeatureRecord", "FeatureClipboard"]),
 
         .testTarget(name: "ToolboxCoreTests", dependencies: ["ToolboxCore"]),
         .testTarget(name: "FeatureScreenshotTests", dependencies: ["FeatureScreenshot"]),
@@ -30,6 +33,7 @@ let package = Package(
         .testTarget(name: "FeatureOCRTests", dependencies: ["FeatureOCR"]),
         .testTarget(name: "FeatureRecordTests", dependencies: ["FeatureRecord"]),
         .testTarget(name: "FeatureClipboardTests", dependencies: ["FeatureClipboard"]),
+        .testTarget(name: "AppUpdaterTests", dependencies: ["AppUpdater"]),
     ],
     swiftLanguageModes: [.v5]
 )

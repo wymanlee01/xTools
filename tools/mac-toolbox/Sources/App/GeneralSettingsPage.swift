@@ -3,13 +3,14 @@ import ServiceManagement
 import ToolboxCore
 
 /// “通用”设置页，坐标取自 iShot 的界面
-/// 启动 & 显示：隐藏菜单栏图标、开机自启动；权限；初始化
+/// 启动 & 显示：隐藏菜单栏图标、开机自启动、检查更新（iShot 走 App Store 没有这项，自己加的）；权限；初始化
 @MainActor
 enum GeneralSettingsPage {
     static let hideMenuBarIconKey = "general.hideMenuBarIcon"
 
-    static func make(settings: SettingsStore, onMenuBarIconChange: @escaping (Bool) -> Void,
-                     onCheckPermissions: @escaping () -> Void, onResetAll: @escaping () -> Void) -> SettingsPageInfo {
+    static func make(settings: SettingsStore, currentVersion: String, onMenuBarIconChange: @escaping (Bool) -> Void,
+                     onCheckUpdates: @escaping () -> Void, onCheckPermissions: @escaping () -> Void,
+                     onResetAll: @escaping () -> Void) -> SettingsPageInfo {
         SettingsPageInfo(title: "通用", symbol: "gearshape") {
             let page = SettingsPageView()
 
@@ -24,6 +25,18 @@ enum GeneralSettingsPage {
             page.addCheckbox("开机自启动", at: CGRect(x: 30, y: 113, width: 300, height: 18),
                              isOn: SMAppService.mainApp.status == .enabled, in: launch) { enabled in
                 setLaunchAtLogin(enabled)
+            }
+
+            // 更新：从 GitHub Releases 下载
+            page.addSeparator(at: CGRect(x: 30, y: 92, width: 560, height: 1), in: launch)
+            page.addCheckbox("自动检查更新", at: CGRect(x: 30, y: 58, width: 300, height: 18),
+                             isOn: settings.bool(UpdateController.autoCheckKey, default: true), in: launch) { enabled in
+                settings.set(enabled, for: UpdateController.autoCheckKey)
+            }
+            page.addNote("*当前版本 \(currentVersion)，每天启动时检查一次 GitHub 上的新版本",
+                         at: CGRect(x: 36, y: 36, width: 400, height: 16), in: launch)
+            page.addButton("检查更新", at: CGRect(x: 470, y: 54, width: 120, height: 26), in: launch) {
+                onCheckUpdates()
             }
 
             page.addTitle("权限", at: CGRect(x: 72, y: 271, width: 200, height: 19))
