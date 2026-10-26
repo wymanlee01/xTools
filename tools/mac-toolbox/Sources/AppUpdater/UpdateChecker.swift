@@ -30,9 +30,12 @@ public struct GitHubRelease: Decodable, Sendable {
     /// tag 里的版本号（“v0.2.0” → 0.2.0）
     public var version: Version? { Version(tag) }
 
-    /// 安装包：名字里有 xTools 的 zip（release.sh 生成的 xTools-0.2.0.zip）
+    /// Mac 安装包：名字正好是 xTools-<版本>.zip（release.sh 生成）；
+    /// 同一个 Release 里还有 Windows 的安装和更新文件，不能按“含 xTools 的 zip”模糊匹配
     public var appArchive: Asset? {
-        assets.first { $0.name.hasSuffix(".zip") && $0.name.localizedCaseInsensitiveContains("xTools") }
+        guard let version else { return nil }
+        let name = "xTools-\(version).zip"
+        return assets.first { $0.name == name }
     }
 }
 

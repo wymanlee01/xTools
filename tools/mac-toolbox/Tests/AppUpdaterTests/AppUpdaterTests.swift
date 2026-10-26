@@ -24,11 +24,13 @@ struct GitHubReleaseTests {
      "html_url": "https://github.com/wymanlee01/xTools/releases/tag/v0.2.0",
      "assets": [
        {"name": "source.tar.gz", "size": 10, "browser_download_url": "https://example.com/source.tar.gz"},
+       {"name": "xTools-win-Portable.zip", "size": 10, "browser_download_url": "https://example.com/xTools-win-Portable.zip"},
+       {"name": "xTools-0.2.0-full.nupkg", "size": 10, "browser_download_url": "https://example.com/xTools-0.2.0-full.nupkg"},
        {"name": "xTools-0.2.0.zip", "size": 2048, "browser_download_url": "https://example.com/xTools-0.2.0.zip"}
      ]}
     """
 
-    @Test func 解析版本和安装包() throws {
+    @Test func 只认Mac安装包不会选到Windows文件() throws {
         let release = try JSONDecoder().decode(GitHubRelease.self, from: Data(json.utf8))
         #expect(release.version?.description == "0.2.0")
         #expect(release.notes == "- 新增检查更新")
