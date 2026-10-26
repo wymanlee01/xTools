@@ -60,22 +60,29 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
 
     // MARK: - 显示 / 隐藏
 
-    /// 打开面板：用过拖动 / 缩放就回到上次的位置；否则贴在鼠标所在屏幕的右侧、全高，从右边滑入
+    /// 打开面板：总是出现在鼠标所在的屏幕上
+    /// - 拖动 / 缩放过：按记住的位置，挪到鼠标所在屏幕的同一相对位置
+    /// - 否则贴边、全高：鼠标在屏幕左半边贴左边，右半边贴右边，从那一侧滑入
     func show() {
         search.stringValue = ""
         reload()
-        if let saved = savedFrame?().map(NSRectFromString), Self.isOnScreen(saved) {
+        let mouse = NSEvent.mouseLocation
+        let visible = Self.screen(containing: mouse)?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        if let saved = savedFrame?().map(NSRectFromString), saved.width > 0, saved.height > 0 {
+            let from = Self.screen(mostlyCovering: saved)?.visibleFrame
             movingProgrammatically = true
-            setFrame(saved, display: false)
+            setFrame(Self.place(saved, from: from, to: visible), display: false)
             movingProgrammatically = false
             alphaValue = 1
             present()
             return
         }
-        let target = dockedFrame()
+        let target = Self.dockedFrame(in: visible, mouseX: mouse.x)
         movingProgrammatically = true
         if !isVisible {
-            setFrame(target.offsetBy(dx: Self.width / 3, dy: 0), display: false)
+            // 从贴边的那一侧滑进来
+            let slide = target.midX < visible.midX ? -Self.width / 3 : Self.width / 3
+            setFrame(target.offsetBy(dx: slide, dy: 0), display: false)
             alphaValue = 0
         }
         present()
@@ -95,21 +102,41 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
         startKeyMonitor()
     }
 
-    /// 贴屏幕右侧、和可用区域一样高的位置
-    private func dockedFrame() -> CGRect {
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-        return CGRect(x: visible.maxX - Self.width - Self.margin, y: visible.minY + Self.margin,
-                      width: Self.width, height: visible.height - Self.margin * 2)
+    /// 鼠标所在的屏幕
+    private static func screen(containing point: CGPoint) -> NSScreen? {
+        NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
     }
 
-    /// 记住的位置至少有一半在某块屏幕上才用（防止拔掉外接屏后面板跑到看不见的地方）
-    static func isOnScreen(_ frame: CGRect) -> Bool {
-        guard frame.width > 0, frame.height > 0 else { return false }
-        return NSScreen.screens.contains { screen in
-            let overlap = screen.visibleFrame.intersection(frame)
-            return overlap.width * overlap.height >= frame.width * frame.height / 2
+    /// 窗口大部分所在的屏幕（拔掉外接屏后可能一块都不在，返回 nil）
+    private static func screen(mostlyCovering frame: CGRect) -> NSScreen? {
+        func overlap(_ screen: NSScreen) -> CGFloat {
+            let rect = screen.visibleFrame.intersection(frame)
+            return rect.isNull ? 0 : rect.width * rect.height
         }
+        let best = NSScreen.screens.max { overlap($0) < overlap($1) }
+        return best.flatMap { overlap($0) > 0 ? $0 : nil }
+    }
+
+    /// 贴边、和可用区域一样高：鼠标在左半边贴左边，否则贴右边
+    static func dockedFrame(in visible: CGRect, mouseX: CGFloat) -> CGRect {
+        let x = mouseX < visible.midX ? visible.minX + margin : visible.maxX - width - margin
+        return CGRect(x: x, y: visible.minY + margin, width: width, height: visible.height - margin * 2)
+    }
+
+    /// 把记住的位置从原来的屏幕挪到目标屏幕：
+    /// 离上边的距离不变；在原屏幕右半边就保持离右边的距离，否则保持离左边的距离；
+    /// 最后缩到能放下并整个放进目标屏幕
+    static func place(_ frame: CGRect, from old: CGRect?, to visible: CGRect) -> CGRect {
+        var f = frame
+        if let old {
+            f.origin.x = frame.midX > old.midX ? visible.maxX - (old.maxX - frame.minX) : visible.minX + (frame.minX - old.minX)
+            f.origin.y = visible.maxY - (old.maxY - frame.minY)
+        }
+        f.size.width = min(f.width, visible.width)
+        f.size.height = min(f.height, visible.height)
+        f.origin.x = min(max(f.minX, visible.minX), visible.maxX - f.width)
+        f.origin.y = min(max(f.minY, visible.minY), visible.maxY - f.height)
+        return f
     }
 
     // 用户拖动、缩放后记住位置
@@ -121,13 +148,15 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
         saveFrame?(NSStringFromRect(frame))
     }
 
-    /// 恢复贴屏幕右侧
-    @objc private func dockToRight() {
+    /// 恢复贴边（忘掉记住的位置，按鼠标在哪半边贴哪边）
+    @objc private func dockToEdge() {
         saveFrame?(nil)
+        let mouse = NSEvent.mouseLocation
+        let visible = Self.screen(containing: mouse)?.visibleFrame ?? frame
         movingProgrammatically = true
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.18
-            animator().setFrame(dockedFrame(), display: true)
+            animator().setFrame(Self.dockedFrame(in: visible, mouseX: mouse.x), display: true)
         } completionHandler: { [weak self] in
             Task { @MainActor in self?.movingProgrammatically = false }
         }
@@ -186,7 +215,7 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
         pinButton.frame = CGRect(x: 10, y: h - 40, width: 26, height: 26)
         pinButton.autoresizingMask = [.minYMargin]
         root.addSubview(pinButton)
-        let dock = iconButton("rectangle.righthalf.inset.filled", tip: "恢复贴屏幕右侧", action: #selector(dockToRight))
+        let dock = iconButton("rectangle.righthalf.inset.filled", tip: "恢复贴边（鼠标在哪半边贴哪边）", action: #selector(dockToEdge))
         dock.frame = CGRect(x: 36, y: h - 40, width: 26, height: 26)
         dock.autoresizingMask = [.minYMargin]
         root.addSubview(dock)

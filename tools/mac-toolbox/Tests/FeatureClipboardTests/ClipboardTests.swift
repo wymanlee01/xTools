@@ -168,3 +168,38 @@ struct ClipCardStyleTests {
         #expect(ClipCardStyle.detect(ClipItem(kind: .files, filePaths: ["/a"], fingerprint: "f")) == .plain)
     }
 }
+
+/// 面板跟着鼠标出现的位置
+@MainActor
+struct ClipboardPanelPlacementTests {
+    let main = CGRect(x: 0, y: 0, width: 1440, height: 875)
+    let external = CGRect(x: 1440, y: 0, width: 2560, height: 1415)
+
+    @Test func 鼠标在哪半边就贴哪边() {
+        let left = ClipboardPanel.dockedFrame(in: main, mouseX: 300)
+        let right = ClipboardPanel.dockedFrame(in: main, mouseX: 1200)
+        #expect(left.minX == main.minX + ClipboardPanel.margin)
+        #expect(right.maxX == main.maxX - ClipboardPanel.margin)
+        #expect(right.height == main.height - ClipboardPanel.margin * 2)
+    }
+
+    @Test func 记住的位置挪到鼠标所在屏幕() {
+        // 主屏右侧离右边 20、离上边 30 的面板，挪到外接屏后离边距离不变
+        let saved = CGRect(x: 1440 - 20 - 400, y: 875 - 30 - 600, width: 400, height: 600)
+        let moved = ClipboardPanel.place(saved, from: main, to: external)
+        #expect(moved.maxX == external.maxX - 20)
+        #expect(moved.maxY == external.maxY - 30)
+        #expect(moved.size == saved.size)
+        // 同一块屏幕不动
+        #expect(ClipboardPanel.place(saved, from: main, to: main) == saved)
+    }
+
+    @Test func 放不下时缩小并放进屏幕() {
+        let tall = CGRect(x: 1440 + 100, y: 0, width: 515, height: 1400)
+        let moved = ClipboardPanel.place(tall, from: external, to: main)
+        #expect(main.contains(moved))
+        #expect(moved.height == main.height)
+        // 原屏幕已拔掉：只收进目标屏幕
+        #expect(main.contains(ClipboardPanel.place(CGRect(x: 5000, y: 0, width: 320, height: 600), from: nil, to: main)))
+    }
+}
