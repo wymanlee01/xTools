@@ -35,3 +35,6 @@ bin/
 
 # Logs
 *.log
+
+# Swift
+.build/
