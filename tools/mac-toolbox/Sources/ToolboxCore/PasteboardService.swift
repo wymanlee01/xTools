@@ -24,6 +24,13 @@ public final class PasteboardService {
         return true
     }
 
+    /// 写入纯文本，如取色得到的 "#1E90FF"
+    public func write(string: String, source: String) {
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
+        pasteboard.setString(source, forType: Self.sourceType)
+    }
+
     /// 读出当前内容的来源模块；不是本应用写入的返回 nil
     public func currentSource() -> String? {
         pasteboard.string(forType: Self.sourceType)

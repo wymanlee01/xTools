@@ -8,14 +8,14 @@ macOS 菜单栏工具箱（应用名 xTools）。第一版：截图、贴图；�
 ## 构建与运行
 
 ```bash
-swift test                 # 单元测试
+./scripts/test.sh          # 单元测试
 ./scripts/bundle.sh        # 生成 dist/xTools.app
 open dist/xTools.app
 ```
 
 只装命令行工具（没有 Xcode）也能构建。
-已知问题：命令行工具自带的 Swift 6.4 偶尔会报 `plugin for module 'TestingMacros' not found`
-（打包之后紧接着跑测试时最常见），代码没问题，重跑一次 `swift test` 即可。
+测试请用 `scripts/test.sh`：它显式指定了测试宏插件路径。直接跑 `swift test` 偶尔会报
+`plugin for module 'TestingMacros' not found`。
 
 **签名**：屏幕录制权限绑定在签名上。用临时签名时，每次重新编译后都要去「系统设置 → 隐私与安全性 → 屏幕录制」重新勾选。
 有固定证书时这样打包：
@@ -30,6 +30,8 @@ SIGN_IDENTITY="证书名称" ./scripts/bundle.sh
 |---|---|
 | 区域截图 | F1 或菜单栏「区域截图」（没开“将 F1、F2 等键用作标准功能键”时按 fn+F1） |
 | 框选 | 拖拽；单击选中光标下的窗口（没有窗口则选整屏）；拖动选区内部可移动 |
+| 调整选区 | 拖动 8 个手柄改大小；方向键移动 1 点，⇧+方向键移动 10 点 |
+| 放大镜 / 取色 | 框选前和拖拽时跟随光标显示；C 复制 HEX，⇧C 复制 RGB（颜色按 sRGB 换算） |
 | 复制 | 回车 / 双击选区 / ⌘C |
 | 保存 | ⌘S，默认存到桌面 |
 | 取消 | Esc / 右键 |

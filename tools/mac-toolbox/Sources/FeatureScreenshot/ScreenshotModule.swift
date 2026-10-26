@@ -68,12 +68,13 @@ public final class ScreenshotModule: ToolModule {
 
     private func handle(_ result: CaptureSession.Result, image: CGImage?) {
         session = nil
-        guard let image else { return }
         switch result {
         case .copy:
-            context?.pasteboard.write(image: image, source: id)
+            if let image { context?.pasteboard.write(image: image, source: id) }
         case .save:
-            save(image)
+            if let image { save(image) }
+        case .copyColor(let text):
+            context?.pasteboard.write(string: text, source: id)
         case .cancel:
             break
         }
