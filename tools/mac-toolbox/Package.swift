@@ -18,15 +18,18 @@ let package = Package(
         .target(name: "FeatureOCR", dependencies: ["ToolboxCore"]),
         // 功能模块：录屏（通过 CaptureService 框选）
         .target(name: "FeatureRecord", dependencies: ["ToolboxCore"]),
+        // 功能模块：粘贴板（用底座的剪贴板监听和 PinService）
+        .target(name: "FeatureClipboard", dependencies: ["ToolboxCore"]),
 
         // 应用入口：组装模块、菜单栏
-        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin", "FeatureOCR", "FeatureRecord"]),
+        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin", "FeatureOCR", "FeatureRecord", "FeatureClipboard"]),
 
         .testTarget(name: "ToolboxCoreTests", dependencies: ["ToolboxCore"]),
         .testTarget(name: "FeatureScreenshotTests", dependencies: ["FeatureScreenshot"]),
         .testTarget(name: "FeaturePinTests", dependencies: ["FeaturePin"]),
         .testTarget(name: "FeatureOCRTests", dependencies: ["FeatureOCR"]),
         .testTarget(name: "FeatureRecordTests", dependencies: ["FeatureRecord"]),
+        .testTarget(name: "FeatureClipboardTests", dependencies: ["FeatureClipboard"]),
     ],
     swiftLanguageModes: [.v5]
 )

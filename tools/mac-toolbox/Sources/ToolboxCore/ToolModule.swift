@@ -21,6 +21,11 @@ public protocol ToolModule: AnyObject {
     func reloadSettings()
 }
 
+extension Notification.Name {
+    /// 模块请求打开偏好设置窗口（由 App 处理）
+    public static let xToolsOpenSettings = Notification.Name("io.github.wymanlee01.xtools.openSettings")
+}
+
 extension ToolModule {
     public func settingsPages() -> [SettingsPageInfo] { [] }
     public func reloadSettings() {}

@@ -1,4 +1,5 @@
 import AppKit
+import FeatureClipboard
 import FeatureOCR
 import FeaturePin
 import FeatureRecord
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         PinModule(),
         RecordModule(),
         OCRModule(),
+        ClipboardModule(),
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.context = context
         modules.forEach { $0.start(context: context) }
         setupStatusItem()
+        NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .xToolsOpenSettings, object: nil)
         statusItem?.isVisible = !context.settings.bool(GeneralSettingsPage.hideMenuBarIconKey, default: false)
     }
 
