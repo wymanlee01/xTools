@@ -1,8 +1,12 @@
 #!/bin/zsh
 # 编译并打包成 dist/xTools.app
-# 签名：设置 SIGN_IDENTITY 用固定证书签名（推荐，屏幕录制授权不会因重新编译失效）
-#      不设置则用临时签名，每次重新编译后都要重新授权
+# 签名优先级：环境变量 SIGN_IDENTITY → 钥匙串里的 “xTools Dev” 证书 → 临时签名
+# 用固定证书签名时，屏幕录制授权不会因重新编译失效；临时签名每次重新编译后都要重新授权
 set -euo pipefail
+
+if [[ -z "${SIGN_IDENTITY:-}" ]] && security find-identity -p codesigning | grep -q '"xTools Dev"'; then
+    SIGN_IDENTITY="xTools Dev"
+fi
 
 cd "$(dirname "$0")/.."
 CONFIG=${CONFIG:-release}
