@@ -298,6 +298,12 @@ final class SelectionView: NSView {
 
     /// 按位置切换光标样式：手柄上显示调整箭头，选区内显示手形
     private func updateCursor(at point: CGPoint) {
+        // 鼠标在工具栏、确认条等浮层上：用普通箭头（画布及其文字输入框除外）
+        if !isDragging, let superview, let hit = hitTest(convert(point, to: superview)), hit !== self,
+           !(canvas.map { hit.isDescendant(of: $0) } ?? false) {
+            NSCursor.arrow.set()
+            return
+        }
         if let canvas {
             (canvas.tool == .text && canvas.frame.contains(point) ? NSCursor.iBeam : NSCursor.crosshair).set()
             return

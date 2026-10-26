@@ -86,12 +86,12 @@ public final class ClipboardModule: ToolModule {
             panel.onPinToScreen = { [weak self] item in self?.pinToScreen(item) }
             panel.onClearAll = { [weak self] in self?.confirmClear() }
             panel.onOpenSettings = { NotificationCenter.default.post(name: .xToolsOpenSettings, object: nil) }
-            // 拖动、缩放后的位置存在设置里，下次打开还在原处
-            panel.savedFrame = { [weak self] in
-                let value = self?.settings?.store.string("panelFrame", default: "") ?? ""
+            // 调整后的大小存在设置里，下次按这个大小弹出
+            panel.savedSize = { [weak self] in
+                let value = self?.settings?.store.string("panelSize", default: "") ?? ""
                 return value.isEmpty ? nil : value
             }
-            panel.saveFrame = { [weak self] value in self?.settings?.store.set(value ?? "", for: "panelFrame") }
+            panel.saveSize = { [weak self] value in self?.settings?.store.set(value, for: "panelSize") }
             self.panel = panel
         }
         guard let panel else { return }

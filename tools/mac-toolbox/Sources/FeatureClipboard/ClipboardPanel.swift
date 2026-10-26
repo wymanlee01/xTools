@@ -1,14 +1,15 @@
 import AppKit
 
-/// 粘贴板面板，样式参考 PasteNow 官网截图：贴屏幕右侧、全高、毛玻璃圆角；
+/// 粘贴板面板，样式参考 PasteNow 官网截图：在鼠标旁弹出、毛玻璃圆角；
 /// 顶栏（固定按钮、搜索框、设置齿轮）+ 胶囊分类标签 + 卡片列表 + 底栏条数
 /// 不抢焦点（粘贴时目标应用仍在前台）
 /// 操作：输入即搜索；↑↓ 选择；回车粘贴，⇧回车粘贴为纯文本；⌘1~9 直接粘贴第几条；
 ///      空格（搜索框为空时）预览；⌘P 收藏；⌘⌫ 删除；Esc 关闭；右键更多操作
 @MainActor
 final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSWindowDelegate {
-    static let width: CGFloat = 320
-    /// 离屏幕边缘的距离
+    /// 默认大小（用户调过大小后按记住的来）
+    static let defaultSize = CGSize(width: 320, height: 560)
+    /// 离屏幕边缘、离鼠标的距离
     static let margin: CGFloat = 8
 
     // 事件交给模块处理
@@ -19,9 +20,9 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
     var onPinToScreen: ((ClipItem) -> Void)?
     var onClearAll: (() -> Void)?
     var onOpenSettings: (() -> Void)?
-    /// 记住用户拖动、缩放后的位置（存在设置里，字符串格式同 NSStringFromRect）
-    var savedFrame: (() -> String?)?
-    var saveFrame: ((String?) -> Void)?
+    /// 记住用户调整后的大小（存在设置里，字符串格式同 NSStringFromSize）
+    var savedSize: (() -> String?)?
+    var saveSize: ((String) -> Void)?
 
     private let store: ClipStore
     private var rows: [ClipItem] = []
@@ -34,14 +35,12 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
     private var pinButton: NSButton!
     /// 固定面板：点到别处也不收起
     private var keepOpen = false
-    /// 程序自己移动窗口（打开时滑入）时不记位置
-    private var movingProgrammatically = false
     private var keyMonitor: Any?
     private lazy var preview = ClipPreviewPanel()
 
     init(store: ClipStore) {
         self.store = store
-        super.init(contentRect: CGRect(x: 0, y: 0, width: Self.width, height: 600),
+        super.init(contentRect: CGRect(origin: .zero, size: Self.defaultSize),
                    styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
         // 按住顶栏或空白处可拖动，边缘可调大小
         isMovableByWindowBackground = true
@@ -60,39 +59,20 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
 
     // MARK: - 显示 / 隐藏
 
-    /// 打开面板：总是出现在鼠标所在的屏幕上
-    /// - 拖动 / 缩放过：按记住的位置，挪到鼠标所在屏幕的同一相对位置
-    /// - 否则贴边、全高：鼠标在屏幕左半边贴左边，右半边贴右边，从那一侧滑入
+    /// 打开面板：在鼠标旁边弹出，大小按用户上次调整的来，淡入显示
     func show() {
         search.stringValue = ""
         reload()
         let mouse = NSEvent.mouseLocation
         let visible = Self.screen(containing: mouse)?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-        if let saved = savedFrame?().map(NSRectFromString), saved.width > 0, saved.height > 0 {
-            let from = Self.screen(mostlyCovering: saved)?.visibleFrame
-            movingProgrammatically = true
-            setFrame(Self.place(saved, from: from, to: visible), display: false)
-            movingProgrammatically = false
-            alphaValue = 1
-            present()
-            return
-        }
-        let target = Self.dockedFrame(in: visible, mouseX: mouse.x)
-        movingProgrammatically = true
-        if !isVisible {
-            // 从贴边的那一侧滑进来
-            let slide = target.midX < visible.midX ? -Self.width / 3 : Self.width / 3
-            setFrame(target.offsetBy(dx: slide, dy: 0), display: false)
-            alphaValue = 0
-        }
+        var size = Self.defaultSize
+        if let saved = savedSize?().map(NSSizeFromString), saved.width > 0, saved.height > 0 { size = saved }
+        setFrame(Self.frame(near: mouse, size: size, in: visible), display: false)
+        if !isVisible { alphaValue = 0 }
         present()
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            animator().setFrame(target, display: true)
+            context.duration = 0.15
             animator().alphaValue = 1
-        } completionHandler: { [weak self] in
-            Task { @MainActor in self?.movingProgrammatically = false }
         }
     }
 
@@ -107,59 +87,23 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
         NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
     }
 
-    /// 窗口大部分所在的屏幕（拔掉外接屏后可能一块都不在，返回 nil）
-    private static func screen(mostlyCovering frame: CGRect) -> NSScreen? {
-        func overlap(_ screen: NSScreen) -> CGFloat {
-            let rect = screen.visibleFrame.intersection(frame)
-            return rect.isNull ? 0 : rect.width * rect.height
-        }
-        let best = NSScreen.screens.max { overlap($0) < overlap($1) }
-        return best.flatMap { overlap($0) > 0 ? $0 : nil }
+    /// 面板放在鼠标右下方（左上角挨着鼠标）；
+    /// 右边放不下就放到鼠标左边，下边放不下就放到鼠标上方，最后整个收进屏幕可用区域
+    static func frame(near mouse: CGPoint, size: CGSize, in visible: CGRect) -> CGRect {
+        let w = min(size.width, visible.width - margin * 2)
+        let h = min(size.height, visible.height - margin * 2)
+        var x = mouse.x + margin
+        if x + w > visible.maxX - margin { x = mouse.x - margin - w }
+        var y = mouse.y - margin - h
+        if y < visible.minY + margin { y = mouse.y + margin }
+        x = min(max(x, visible.minX + margin), visible.maxX - margin - w)
+        y = min(max(y, visible.minY + margin), visible.maxY - margin - h)
+        return CGRect(x: x, y: y, width: w, height: h)
     }
 
-    /// 贴边、和可用区域一样高：鼠标在左半边贴左边，否则贴右边
-    static func dockedFrame(in visible: CGRect, mouseX: CGFloat) -> CGRect {
-        let x = mouseX < visible.midX ? visible.minX + margin : visible.maxX - width - margin
-        return CGRect(x: x, y: visible.minY + margin, width: width, height: visible.height - margin * 2)
-    }
-
-    /// 把记住的位置从原来的屏幕挪到目标屏幕：
-    /// 离上边的距离不变；在原屏幕右半边就保持离右边的距离，否则保持离左边的距离；
-    /// 最后缩到能放下并整个放进目标屏幕
-    static func place(_ frame: CGRect, from old: CGRect?, to visible: CGRect) -> CGRect {
-        var f = frame
-        if let old {
-            f.origin.x = frame.midX > old.midX ? visible.maxX - (old.maxX - frame.minX) : visible.minX + (frame.minX - old.minX)
-            f.origin.y = visible.maxY - (old.maxY - frame.minY)
-        }
-        f.size.width = min(f.width, visible.width)
-        f.size.height = min(f.height, visible.height)
-        f.origin.x = min(max(f.minX, visible.minX), visible.maxX - f.width)
-        f.origin.y = min(max(f.minY, visible.minY), visible.maxY - f.height)
-        return f
-    }
-
-    // 用户拖动、缩放后记住位置
-    func windowDidMove(_ notification: Notification) { rememberFrame() }
-    func windowDidEndLiveResize(_ notification: Notification) { rememberFrame() }
-
-    private func rememberFrame() {
-        guard !movingProgrammatically, isVisible else { return }
-        saveFrame?(NSStringFromRect(frame))
-    }
-
-    /// 恢复贴边（忘掉记住的位置，按鼠标在哪半边贴哪边）
-    @objc private func dockToEdge() {
-        saveFrame?(nil)
-        let mouse = NSEvent.mouseLocation
-        let visible = Self.screen(containing: mouse)?.visibleFrame ?? frame
-        movingProgrammatically = true
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            animator().setFrame(Self.dockedFrame(in: visible, mouseX: mouse.x), display: true)
-        } completionHandler: { [weak self] in
-            Task { @MainActor in self?.movingProgrammatically = false }
-        }
+    /// 用户调整大小后记住，下次按这个大小弹出
+    func windowDidEndLiveResize(_ notification: Notification) {
+        saveSize?(NSStringFromSize(frame.size))
     }
 
     func hide() {
@@ -200,7 +144,7 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
     // MARK: - 布局
 
     private func buildLayout() {
-        let w = Self.width, h: CGFloat = 600
+        let w = Self.defaultSize.width, h = Self.defaultSize.height
         let root = NSVisualEffectView(frame: CGRect(x: 0, y: 0, width: w, height: h))
         root.material = .sidebar
         root.blendingMode = .behindWindow
@@ -210,20 +154,16 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
         root.autoresizingMask = [.width, .height]
         contentView = root
 
-        // 顶栏：固定按钮 | 恢复贴右侧 | 搜索框 | 设置齿轮
+        // 顶栏：固定按钮 | 搜索框 | 设置齿轮
         pinButton = iconButton("pin", tip: "固定面板（点别处不收起）", action: #selector(togglePinPanel))
         pinButton.frame = CGRect(x: 10, y: h - 40, width: 26, height: 26)
         pinButton.autoresizingMask = [.minYMargin]
         root.addSubview(pinButton)
-        let dock = iconButton("rectangle.righthalf.inset.filled", tip: "恢复贴边（鼠标在哪半边贴哪边）", action: #selector(dockToEdge))
-        dock.frame = CGRect(x: 36, y: h - 40, width: 26, height: 26)
-        dock.autoresizingMask = [.minYMargin]
-        root.addSubview(dock)
         let gear = iconButton("gearshape", tip: "偏好设置", action: #selector(openSettings))
         gear.frame = CGRect(x: w - 36, y: h - 40, width: 26, height: 26)
         gear.autoresizingMask = [.minXMargin, .minYMargin]
         root.addSubview(gear)
-        search.frame = CGRect(x: 68, y: h - 39, width: w - 110, height: 24)
+        search.frame = CGRect(x: 40, y: h - 39, width: w - 82, height: 24)
         search.placeholderString = "输入以搜索…"
         search.delegate = self
         search.focusRingType = .none
@@ -394,7 +334,7 @@ final class ClipboardPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate,
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        ClipCardView(item: rows[row], index: row, store: store, width: tableColumn?.width ?? Self.width)
+        ClipCardView(item: rows[row], index: row, store: store, width: tableColumn?.width ?? Self.defaultSize.width)
     }
 
     /// 不画系统选中底色，选中由卡片描边表示
