@@ -46,13 +46,17 @@ enum ScreenshotSettingsPage {
         box.cornerRadius = 6
         box.borderColor = .separatorColor
         box.fillColor = .controlBackgroundColor
+        // 不留标题位置和内边距，内容区就是整个框（去掉 1 点边框后 603×259）
+        box.titlePosition = .noTitle
+        box.contentViewMargins = .zero
         tab.addSubview(box)
-        let header = NSView(frame: CGRect(x: 0, y: 236, width: 605, height: 24))
+        // 表头在框顶和分隔线之间上下居中
+        let header = NSView(frame: CGRect(x: 0, y: 233, width: 603, height: 26))
         box.addSubview(header)
-        page.addLabel("截图模式", at: CGRect(x: 16, y: 4, width: 200, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
-        page.addLabel("快捷键", at: CGRect(x: 240, y: 4, width: 130, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
-        page.addLabel("偏好设置", at: CGRect(x: 420, y: 4, width: 150, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
-        page.addSeparator(at: CGRect(x: 0, y: 232, width: 605, height: 1), in: box)
+        page.addLabel("截图模式", at: CGRect(x: 16, y: 5, width: 200, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
+        page.addLabel("快捷键", at: CGRect(x: 240, y: 5, width: 130, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
+        page.addLabel("偏好设置", at: CGRect(x: 420, y: 5, width: 150, height: 16), font: .boldSystemFont(ofSize: 12), in: header)
+        page.addSeparator(at: CGRect(x: 0, y: 232, width: 603, height: 1), in: box)
         page.addLabel("区域截图", at: CGRect(x: 16, y: 206, width: 200, height: 17), in: box)
         page.addHotkeyRecorder(at: CGRect(x: 240, y: 204, width: 130, height: 20), hotkey: settings.captureHotkey, in: box) { hotkey in
             store.set(hotkey, for: "hotkey.capture")

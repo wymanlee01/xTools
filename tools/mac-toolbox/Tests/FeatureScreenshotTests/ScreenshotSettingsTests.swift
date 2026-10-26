@@ -15,7 +15,7 @@ struct ScreenshotSettingsTests {
         let settings = makeSettings()
         #expect(settings.captureHotkey == ScreenshotSettings.defaultHotkey)
         #expect(!settings.captureCursor)
-        #expect(settings.crosshair)
+        #expect(!settings.crosshair)
         #expect(settings.rightClickExit)
         #expect(settings.addShadow && settings.shadowSize == 18)
         #expect(settings.addCorner && settings.cornerSize == 18)

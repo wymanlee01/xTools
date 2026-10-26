@@ -37,7 +37,7 @@ struct ScreenshotSettings {
     // 快捷键与效果
     var captureHotkey: Hotkey? { store.hotkey("hotkey.capture", default: Self.defaultHotkey) }
     var captureCursor: Bool { store.bool("captureCursor", default: false) }
-    var crosshair: Bool { store.bool("crosshair", default: true) }
+    var crosshair: Bool { store.bool("crosshair", default: false) }
     var rightClickExit: Bool { store.bool("rightClickExit", default: true) }
     var addShadow: Bool { store.bool("addShadow", default: true) }
     var shadowSize: Double { store.double("shadowSize", default: 18) }
