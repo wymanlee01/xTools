@@ -1,0 +1,69 @@
+# 推送 v* 的 tag 时：跑测试 → 用 xTools Dev 证书打包 → 建 GitHub Release 并上传 zip
+# 需要在仓库 Settings → Secrets and variables → Actions 里配两个密钥：
+#   XTOOLS_CERT_P12_BASE64  xTools Dev 证书导出的 p12，再 base64 编码
+#   XTOOLS_CERT_PASSWORD    导出 p12 时设的密码
+# 必须用同一张证书签名，旧版本的“检查更新”才会接受新版本
+name: mac-toolbox release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: tools/mac-toolbox
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查 tag 和 VERSION 一致
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "tag $GITHUB_REF_NAME 和 VERSION 文件里的 $VERSION 不一致" >&2
+            exit 1
+          fi
+
+      - name: 单元测试
+        run: ./scripts/test.sh
+
+      - name: 导入签名证书（临时钥匙串）
+        env:
+          CERT_P12_BASE64: ${{ secrets.XTOOLS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.XTOOLS_CERT_PASSWORD }}
+        run: |
+          if [[ -z "$CERT_P12_BASE64" || -z "$CERT_PASSWORD" ]]; then
+            echo "没有配置 XTOOLS_CERT_P12_BASE64 / XTOOLS_CERT_PASSWORD 密钥" >&2
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/xtools.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          # 允许 codesign 直接用私钥，不弹授权框
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: 打包
+        run: ./scripts/release.sh
+
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          gh release create "$GITHUB_REF_NAME" "dist/xTools-$VERSION.zip" \
+            --title "xTools $VERSION" --generate-notes --verify-tag
+
+      - name: 删除临时钥匙串
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/xtools.keychain-db" || true

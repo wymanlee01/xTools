@@ -14,9 +14,11 @@ open dist/xTools.app
 ./scripts/release.sh       # 生成发布包 dist/xTools-<版本>.zip
 ```
 
-**发布新版本**（给「检查更新」用）：
-1. 改 `VERSION` 里的版本号，运行 `./scripts/release.sh`（必须有 `xTools Dev` 证书）。
-2. 在 GitHub 仓库的 Releases 新建 tag `v<版本号>` 的正式版，上传生成的 zip，说明里写更新内容。
+**发布新版本**（给「检查更新」用）：改 `VERSION` 里的版本号并提交，打 tag `v<版本号>` 推到 GitHub。
+GitHub Actions（`.github/workflows/mac-toolbox-release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 zip。
+第一次需要在仓库 Settings → Secrets and variables → Actions 配两个密钥：
+`XTOOLS_CERT_P12_BASE64`（证书导出的 p12 再 base64）和 `XTOOLS_CERT_PASSWORD`（导出时设的密码）。
+本地手动发布也可以：`./scripts/release.sh` 生成 zip 后在 Releases 页面上传。
 
 旧版本会从 `https://api.github.com/repos/<仓库>/releases/latest` 取最新版，所以仓库要公开（或用 `UPDATE_REPO=owner/repo ./scripts/bundle.sh` 指向一个公开的发布仓库）。
 安装前会校验新版本的签名：必须和当前版本是同一张证书、同一个 bundle id，否则拒绝安装；临时签名的版本不能自动更新。
