@@ -12,12 +12,15 @@ let package = Package(
 
         // 功能模块：截图
         .target(name: "FeatureScreenshot", dependencies: ["ToolboxCore"]),
+        // 功能模块：贴图（通过 ToolboxCore 里的 PinService 给截图模块用）
+        .target(name: "FeaturePin", dependencies: ["ToolboxCore"]),
 
         // 应用入口：组装模块、菜单栏
-        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot"]),
+        .executableTarget(name: "App", dependencies: ["ToolboxCore", "FeatureScreenshot", "FeaturePin"]),
 
         .testTarget(name: "ToolboxCoreTests", dependencies: ["ToolboxCore"]),
         .testTarget(name: "FeatureScreenshotTests", dependencies: ["FeatureScreenshot"]),
+        .testTarget(name: "FeaturePinTests", dependencies: ["FeaturePin"]),
     ],
     swiftLanguageModes: [.v5]
 )

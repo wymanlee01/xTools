@@ -63,6 +63,15 @@ final class SelectionView: NSView {
         needsDisplay = true
     }
 
+    /// 选区在全局屏幕坐标里的位置（贴图要放在原位）
+    var selectionOnScreen: CGRect? {
+        guard let selection, let window else { return nil }
+        return window.convertToScreen(convert(selection, to: nil))
+    }
+
+    /// 截图像素 / 点
+    var pixelScale: CGFloat { frozen.scale }
+
     /// 选区对应的图片；有标注时返回合成后的图片
     func croppedImage() -> CGImage? {
         if let canvas { return canvas.renderedImage() }
@@ -167,6 +176,7 @@ final class SelectionView: NSView {
         case .styleChanged(let style): canvas?.style = style
         case .undo: canvas?.undo()
         case .save: session?.finish(.save)
+        case .pin: session?.finish(.pin)
         case .cancel: session?.finish(.cancel)
         case .copy: session?.finish(.copy)
         }
@@ -248,12 +258,13 @@ final class SelectionView: NSView {
         }
     }
 
-    /// 执行快捷键对应的操作；贴图、OCR、长截图还没做
+    /// 执行快捷键对应的操作；OCR、长截图还没做
     private func perform(_ action: ShortcutAction) {
         if let tool = action.tool { select(tool); return }
         switch action {
         case .save: session?.finish(.save)
         case .copy: session?.finish(.copy)
+        case .pin: session?.finish(.pin)
         default: break
         }
     }

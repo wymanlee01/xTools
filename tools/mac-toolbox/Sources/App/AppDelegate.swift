@@ -1,4 +1,5 @@
 import AppKit
+import FeaturePin
 import FeatureScreenshot
 import ToolboxCore
 
@@ -11,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 新增功能模块只需加到这里
     private let modules: [ToolModule] = [
         ScreenshotModule(),
+        PinModule(),
     ]
 
     func applicationDidFinishLaunching(_ notification: Notification) {

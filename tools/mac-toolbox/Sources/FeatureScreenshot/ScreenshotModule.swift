@@ -57,8 +57,8 @@ public final class ScreenshotModule: ToolModule {
                 let screens = try await ScreenCapturer.captureAllScreens()
                 guard let settings = self?.settings else { return }
                 let shortcuts = ToolShortcuts(settings: settings)
-                let session = CaptureSession(screens: screens, windows: windows, shortcuts: shortcuts) { result, image in
-                    self?.handle(result, image: image)
+                let session = CaptureSession(screens: screens, windows: windows, shortcuts: shortcuts) { result, output in
+                    self?.handle(result, output: output)
                 }
                 self?.session = session
                 session.show()
@@ -68,13 +68,16 @@ public final class ScreenshotModule: ToolModule {
         }
     }
 
-    private func handle(_ result: CaptureSession.Result, image: CGImage?) {
+    private func handle(_ result: CaptureSession.Result, output: CaptureOutput?) {
         session = nil
         switch result {
         case .copy:
-            if let image { context?.pasteboard.write(image: image, source: id) }
+            if let output { context?.pasteboard.write(image: output.image, source: id) }
         case .save:
-            if let image { save(image) }
+            if let output { save(output.image) }
+        case .pin:
+            // 通过底座里的 PinService 调用贴图模块，两个模块互不 import
+            if let output { context?.services.resolve(PinService.self)?.pin(image: output.image, frame: output.frame, scale: output.scale) }
         case .copyColor(let text):
             context?.pasteboard.write(string: text, source: id)
         case .cancel:

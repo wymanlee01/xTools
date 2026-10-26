@@ -1,5 +1,14 @@
 import AppKit
 
+/// 一次截图的产出
+struct CaptureOutput {
+    let image: CGImage
+    /// 选区在全局屏幕坐标里的位置（点）
+    let frame: CGRect?
+    /// 图片像素 / 点
+    let scale: CGFloat
+}
+
 /// 遮罩窗口：盖住整块屏幕，能成为 key window 才收得到键盘事件
 final class OverlayWindow: NSWindow {
     override var canBecomeKey: Bool { true }
@@ -10,6 +19,8 @@ final class OverlayWindow: NSWindow {
 final class CaptureSession {
     enum Result {
         case copy, save, cancel
+        /// 贴到屏幕上（放在选区原来的位置）
+        case pin
         /// 复制取到的颜色文本（HEX 或 RGB）
         case copyColor(String)
     }
@@ -17,10 +28,10 @@ final class CaptureSession {
     private var windows: [OverlayWindow] = []
     private var views: [SelectionView] = []
     private var activeView: SelectionView?
-    private let onFinish: (Result, CGImage?) -> Void
+    private let onFinish: (Result, CaptureOutput?) -> Void
 
     init(screens: [FrozenScreen], windows visible: [VisibleWindow], shortcuts: ToolShortcuts,
-         onFinish: @escaping (Result, CGImage?) -> Void) {
+         onFinish: @escaping (Result, CaptureOutput?) -> Void) {
         self.onFinish = onFinish
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
 
@@ -68,15 +79,20 @@ final class CaptureSession {
     }
 
     func finish(_ result: Result) {
-        // 只有复制、保存需要裁出选区图片
-        var image: CGImage?
+        // 复制、保存、贴图需要裁出选区图片；贴图还要记下选区在屏幕上的位置
+        var output: CaptureOutput?
+        let view = activeView ?? views.first { $0.selection != nil }
         switch result {
-        case .copy, .save: image = (activeView ?? views.first { $0.selection != nil })?.croppedImage()
-        case .cancel, .copyColor: break
+        case .copy, .save, .pin:
+            if let view, let image = view.croppedImage() {
+                output = CaptureOutput(image: image, frame: view.selectionOnScreen, scale: view.pixelScale)
+            }
+        case .cancel, .copyColor:
+            break
         }
         for window in windows { window.orderOut(nil) }
         windows.removeAll()
         views.removeAll()
-        onFinish(result, image)
+        onFinish(result, output)
     }
 }

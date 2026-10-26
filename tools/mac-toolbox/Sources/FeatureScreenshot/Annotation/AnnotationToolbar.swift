@@ -4,7 +4,7 @@ import AppKit
 enum ToolbarAction {
     case selectTool(AnnotationTool)
     case styleChanged(AnnotationStyle)
-    case undo, save, cancel, copy
+    case undo, save, cancel, copy, pin
 }
 
 /// 截图工具栏，尺寸、按钮顺序、样式栏布局都按 iShot 的界面1:1 复刻：
@@ -95,7 +95,7 @@ final class AnnotationToolbar: NSView {
     // MARK: - 主工具栏
 
     private func buildMainBar() {
-        // 顺序、提示文字、提示框尺寸都和 iShot 一致；贴图、OCR、长截图功能还没做，按钮置灰占位
+        // 顺序、提示文字、提示框尺寸都和 iShot 一致；OCR、长截图功能还没做，按钮置灰占位
         typealias Item = (symbol: String, tip: TipSpec, tool: AnnotationTool?, action: ToolbarAction?, enabled: Bool)
         func shortcut(_ title: String, _ action: ShortcutAction, width: CGFloat = 120) -> TipSpec {
             TipSpec(title: title, size: CGSize(width: width, height: 70), body: .shortcut(action, note: nil))
@@ -110,7 +110,7 @@ final class AnnotationToolbar: NSView {
             ("character", shortcut("文本工具", .text, width: 130), .text, nil, true),
             ("1.circle", shortcut("步骤标注工具", .step, width: 130), .step, nil, true),
             ("highlighter", shortcut("高亮工具", .highlight), .highlight, nil, true),
-            ("pin", shortcut("贴图", .pin), nil, nil, false),
+            ("pin", shortcut("贴图", .pin), nil, .pin, true),
             ("arrow.uturn.backward",
              TipSpec(title: "撤销工具", size: CGSize(width: 154, height: 90),
                      body: .lines(["上一步快捷键 : ⌘Z", "下一步快捷键 : ⇧⌘Z"])), nil, .undo, true),
