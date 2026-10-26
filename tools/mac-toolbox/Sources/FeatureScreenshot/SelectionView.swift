@@ -22,18 +22,32 @@ final class SelectionView: NSView {
     private var activeHandle: ResizeHandle?
     private var rectBeforeResize: CGRect = .zero
 
+    /// 截图界面的单键快捷键（可在工具栏悬浮提示框里修改）
+    private let shortcuts: ToolShortcuts
+    /// 选区定下后显示的工具栏
+    private let toolbar: AnnotationToolbar
+    /// 选了标注工具后才创建；创建后选区锁定，不能再移动和调整
+    private var canvas: AnnotationCanvas?
+
     /// 还没定下选区、或正在拖拽时才显示放大镜
     private var showsMagnifier: Bool {
-        cursor != nil && (selection == nil || dragStart != nil || activeHandle != nil)
+        cursor != nil && canvas == nil && (selection == nil || dragStart != nil || activeHandle != nil)
     }
 
-    init(frozen: FrozenScreen, windowRects: [CGRect], session: CaptureSession) {
+    private var isDragging: Bool { dragStart != nil || moveOffset != nil || activeHandle != nil }
+
+    init(frozen: FrozenScreen, windowRects: [CGRect], shortcuts: ToolShortcuts, session: CaptureSession) {
         self.frozen = frozen
+        self.shortcuts = shortcuts
+        toolbar = AnnotationToolbar(shortcuts: shortcuts)
         self.windowRects = windowRects
         self.session = session
         super.init(frame: CGRect(origin: .zero, size: frozen.screen.frame.size))
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeAlways, .inVisibleRect],
                                        owner: self, userInfo: nil))
+        toolbar.isHidden = true
+        toolbar.onAction = { [weak self] action in self?.handleToolbar(action) }
+        addSubview(toolbar)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -45,11 +59,18 @@ final class SelectionView: NSView {
         selection = nil
         hoverWindow = nil
         cursor = nil
+        toolbar.isHidden = true
         needsDisplay = true
     }
 
-    /// 选区对应的图片
+    /// 选区对应的图片；有标注时返回合成后的图片
     func croppedImage() -> CGImage? {
+        if let canvas { return canvas.renderedImage() }
+        return baseImage()
+    }
+
+    /// 选区内的原始截图
+    private func baseImage() -> CGImage? {
         guard let selection else { return nil }
         let rect = SelectionGeometry.pixelRect(for: selection, viewHeight: bounds.height, scale: frozen.scale,
                                                imageSize: CGSize(width: frozen.image.width, height: frozen.image.height))
@@ -74,6 +95,8 @@ final class SelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        // 标注中选区已锁定，选区外的点击不处理
+        guard canvas == nil else { return }
         let point = convert(event.locationInWindow, from: nil)
         if event.clickCount == 2, selection?.contains(point) == true {
             session?.finish(.copy)
@@ -104,6 +127,7 @@ final class SelectionView: NSView {
             selection = SelectionGeometry.rect(from: start, to: point)
             hoverWindow = nil
         }
+        toolbar.isHidden = true
         needsDisplay = true
     }
 
@@ -114,6 +138,7 @@ final class SelectionView: NSView {
             moveOffset = nil
             activeHandle = nil
             updateCursor(at: convert(event.locationInWindow, from: nil))
+            layoutToolbar()
             needsDisplay = true
         }
         guard wasCreating else { return }
@@ -122,12 +147,71 @@ final class SelectionView: NSView {
         selection = hoverWindow ?? bounds
     }
 
+    // MARK: - 工具栏和标注
+
+    /// 工具栏放在选区下方右对齐；下方放不下放上方，再放不下放选区内底部
+    private func layoutToolbar() {
+        guard let selection, !isDragging else { toolbar.isHidden = true; return }
+        let size = toolbar.preferredSize
+        var origin = CGPoint(x: selection.maxX - size.width, y: selection.minY - size.height - 6)
+        if origin.y < bounds.minY + 4 { origin.y = selection.maxY + 6 }
+        if origin.y + size.height > bounds.maxY - 4 { origin.y = selection.minY + 6 }
+        origin.x = min(max(origin.x, bounds.minX + 4), bounds.maxX - size.width - 4)
+        toolbar.frame = CGRect(origin: origin, size: size)
+        toolbar.isHidden = false
+    }
+
+    private func handleToolbar(_ action: ToolbarAction) {
+        switch action {
+        case .selectTool(let tool): select(tool)
+        case .styleChanged(let style): canvas?.style = style
+        case .undo: canvas?.undo()
+        case .save: session?.finish(.save)
+        case .cancel: session?.finish(.cancel)
+        case .copy: session?.finish(.copy)
+        }
+        // 点完按钮把键盘焦点拿回来，快捷键才继续有效
+        if window?.firstResponder is NSButton { window?.makeFirstResponder(self) }
+    }
+
+    /// 选工具：第一次选时创建画布并锁定选区
+    private func select(_ tool: AnnotationTool) {
+        guard let selection else { return }
+        if canvas == nil {
+            guard let base = baseImage() else { return }
+            let canvas = AnnotationCanvas(frame: selection, baseImage: base)
+            canvas.style = toolbar.style
+            canvas.onChange = { [weak self] in self?.refreshUndoState() }
+            // 选中已有元素：工具栏回显它的样式，之后改样式就作用到它
+            canvas.onSelectionChange = { [weak self, weak canvas] style in
+                guard let style else { return }
+                self?.toolbar.show(style: style)
+                canvas?.style = style
+            }
+            addSubview(canvas, positioned: .below, relativeTo: toolbar)
+            self.canvas = canvas
+            refreshUndoState()
+        }
+        canvas?.tool = tool
+        toolbar.select(tool: tool)
+        layoutToolbar()
+        needsDisplay = true
+    }
+
+    private func refreshUndoState() {
+        toolbar.setUndoState(canUndo: canvas?.document.canUndo ?? false)
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         session?.finish(.cancel)
     }
 
     /// 按位置切换光标样式：手柄上显示调整箭头，选区内显示手形
     private func updateCursor(at point: CGPoint) {
+        if let canvas {
+            (canvas.tool == .text && canvas.frame.contains(point) ? NSCursor.iBeam : NSCursor.crosshair).set()
+            return
+        }
         guard let selection, dragStart == nil else { NSCursor.crosshair.set(); return }
         switch SelectionGeometry.handle(at: point, in: selection) {
         case .left, .right: NSCursor.resizeLeftRight.set()
@@ -141,14 +225,36 @@ final class SelectionView: NSView {
 
     override func keyDown(with event: NSEvent) {
         let flags = event.modifierFlags
-        switch (event.keyCode, flags.contains(.command)) {
+        let command = flags.contains(.command)
+        // 有选区时先查自定义单键快捷键（默认同 iShot：1~9 工具、空格保存、回车复制）
+        if !command, selection != nil,
+           let key = ToolShortcuts.key(characters: event.charactersIgnoringModifiers, keyCode: event.keyCode),
+           let action = shortcuts.action(forKey: key) {
+            perform(action)
+            return
+        }
+        switch (event.keyCode, command) {
         case (53, _): session?.finish(.cancel)                // Esc
-        case (36, _), (76, _): session?.finish(.copy)         // 回车
+        case (36, _), (76, _): session?.finish(.copy)         // 回车（还没有选区时也能用）
         case (8, true): session?.finish(.copy)                // ⌘C
-        case (8, false): copyColor(asRGB: flags.contains(.shift)) // C / ⇧C
+        case (8, false) where selection == nil:
+            copyColor(asRGB: flags.contains(.shift))          // 框选前 C / ⇧C 复制颜色
         case (1, true): session?.finish(.save)                // ⌘S
-        case (123...126, false): nudge(keyCode: event.keyCode, step: flags.contains(.shift) ? 10 : 1)
+        case (6, true): flags.contains(.shift) ? canvas?.redo() : canvas?.undo()  // ⌘Z / ⇧⌘Z
+        case (51, false), (117, false): canvas?.deleteSelection()                  // Delete
+        case (123...126, false) where canvas == nil:
+            nudge(keyCode: event.keyCode, step: flags.contains(.shift) ? 10 : 1)
         default: super.keyDown(with: event)
+        }
+    }
+
+    /// 执行快捷键对应的操作；贴图、OCR、长截图还没做
+    private func perform(_ action: ShortcutAction) {
+        if let tool = action.tool { select(tool); return }
+        switch action {
+        case .save: session?.finish(.save)
+        case .copy: session?.finish(.copy)
+        default: break
         }
     }
 
@@ -162,6 +268,7 @@ final class SelectionView: NSView {
         default: rect.origin.y += step   // ↑
         }
         selection = SelectionGeometry.clamp(rect, in: bounds)
+        layoutToolbar()
         needsDisplay = true
     }
 
@@ -191,7 +298,7 @@ final class SelectionView: NSView {
             border.stroke()
         }
         if let selection {
-            if dragStart == nil { drawHandles(for: selection) }
+            if dragStart == nil, canvas == nil { drawHandles(for: selection) }
             drawSizeLabel(for: selection)
         }
         if showsMagnifier, let cursor {

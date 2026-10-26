@@ -19,7 +19,8 @@ final class CaptureSession {
     private var activeView: SelectionView?
     private let onFinish: (Result, CGImage?) -> Void
 
-    init(screens: [FrozenScreen], windows visible: [VisibleWindow], onFinish: @escaping (Result, CGImage?) -> Void) {
+    init(screens: [FrozenScreen], windows visible: [VisibleWindow], shortcuts: ToolShortcuts,
+         onFinish: @escaping (Result, CGImage?) -> Void) {
         self.onFinish = onFinish
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
 
@@ -29,7 +30,8 @@ final class CaptureSession {
                 SelectionGeometry.viewRect(forGlobal: $0.frame, primaryScreenHeight: primaryHeight, screenFrame: frame)
             }
             let window = OverlayWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
-            window.level = .screenSaver
+            // 比菜单栏、Dock 高，但比弹出菜单低，工具栏里的下拉框菜单才不会被遮住
+            window.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue - 1)
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             window.isReleasedWhenClosed = false
             window.acceptsMouseMovedEvents = true
@@ -38,7 +40,7 @@ final class CaptureSession {
             container.wantsLayer = true
             container.layer?.contents = frozen.image
             container.layer?.contentsGravity = .resize
-            let view = SelectionView(frozen: frozen, windowRects: rects, session: self)
+            let view = SelectionView(frozen: frozen, windowRects: rects, shortcuts: shortcuts, session: self)
             view.autoresizingMask = [.width, .height]
             container.addSubview(view)
             window.contentView = container

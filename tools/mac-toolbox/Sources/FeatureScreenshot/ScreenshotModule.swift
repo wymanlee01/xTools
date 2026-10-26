@@ -55,7 +55,9 @@ public final class ScreenshotModule: ToolModule {
         Task { @MainActor [weak self] in
             do {
                 let screens = try await ScreenCapturer.captureAllScreens()
-                let session = CaptureSession(screens: screens, windows: windows) { result, image in
+                guard let settings = self?.settings else { return }
+                let shortcuts = ToolShortcuts(settings: settings)
+                let session = CaptureSession(screens: screens, windows: windows, shortcuts: shortcuts) { result, image in
                     self?.handle(result, image: image)
                 }
                 self?.session = session
