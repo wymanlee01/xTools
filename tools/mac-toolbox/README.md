@@ -2,7 +2,9 @@
 
 macOS 菜单栏工具箱（应用名 xTools）。第一版：截图、贴图；后续：粘贴板。
 
-- 技术栈：Swift 6 + AppKit，SwiftPM 构建，最低 macOS 14
+- 技术栈：Swift 6 + AppKit，SwiftPM 构建，最低 macOS 14，只打 Apple 芯片（arm64）的包
+- 下载安装：[GitHub Releases](https://github.com/wymanlee01/xTools/releases) 下载 `xTools-<版本>.dmg`，打开后把 xTools 拖进「应用程序」。
+  没有经过苹果公证，第一次打开会被拦下：到「系统设置 → 隐私与安全性」点「仍要打开」
 - 设计文档：[docs/mac-toolbox-design.md](../../docs/mac-toolbox-design.md)
 
 ## 构建与运行
@@ -11,14 +13,14 @@ macOS 菜单栏工具箱（应用名 xTools）。第一版：截图、贴图；�
 ./scripts/test.sh          # 单元测试
 ./scripts/bundle.sh        # 生成 dist/xTools.app（版本号取自 VERSION 文件）
 open dist/xTools.app
-./scripts/release.sh       # 生成发布包 dist/xTools-<版本>.zip
+./scripts/release.sh       # 生成发布包 dist/xTools-<版本>.dmg（手动安装）和 .zip（检查更新用）
 ```
 
 **发布新版本**（给「检查更新」用）：改 `VERSION` 里的版本号并提交，打 tag `v<版本号>` 推到 GitHub。
-GitHub Actions（`.github/workflows/mac-toolbox-release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 zip。
+GitHub Actions（`.github/workflows/mac-toolbox-release.yml`）会跑测试、用 `xTools Dev` 证书打包、建 Release 并上传 dmg 和 zip（说明取自 `scripts/release-notes.md`）。
 第一次需要在仓库 Settings → Secrets and variables → Actions 配两个密钥：
 `XTOOLS_CERT_P12_BASE64`（证书导出的 p12 再 base64）和 `XTOOLS_CERT_PASSWORD`（导出时设的密码）。
-本地手动发布也可以：`./scripts/release.sh` 生成 zip 后在 Releases 页面上传。
+本地手动发布也可以：`./scripts/release.sh` 生成 dmg 和 zip 后在 Releases 页面上传。
 
 旧版本会从 `https://api.github.com/repos/<仓库>/releases/latest` 取最新版，所以仓库要公开（或用 `UPDATE_REPO=owner/repo ./scripts/bundle.sh` 指向一个公开的发布仓库）。
 安装前会校验新版本的签名：必须和当前版本是同一张证书、同一个 bundle id，否则拒绝安装；临时签名的版本不能自动更新。

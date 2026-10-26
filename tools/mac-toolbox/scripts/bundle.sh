@@ -15,8 +15,9 @@ APP=dist/xTools.app
 VERSION=$(tr -d '[:space:]' < VERSION)
 UPDATE_REPO=${UPDATE_REPO:-wymanlee01/xTools}
 
-swift build -c "$CONFIG"
-BIN_DIR=$(swift build -c "$CONFIG" --show-bin-path)
+# 只打 Apple 芯片（arm64）的包
+swift build -c "$CONFIG" --arch arm64
+BIN_DIR=$(swift build -c "$CONFIG" --arch arm64 --show-bin-path)
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"

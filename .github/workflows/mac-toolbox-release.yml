@@ -1,4 +1,4 @@
-# 推送 v* 的 tag 时：跑测试 → 用 xTools Dev 证书打包 → 建 GitHub Release 并上传 zip
+# 推送 v* 的 tag 时：跑测试 → 用 xTools Dev 证书打包 → 建 GitHub Release 并上传 dmg（手动安装）和 zip（检查更新用）
 # 需要在仓库 Settings → Secrets and variables → Actions 里配两个密钥：
 #   XTOOLS_CERT_P12_BASE64  xTools Dev 证书导出的 p12，再 base64 编码
 #   XTOOLS_CERT_PASSWORD    导出 p12 时设的密码
@@ -61,8 +61,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(tr -d '[:space:]' < VERSION)
-          gh release create "$GITHUB_REF_NAME" "dist/xTools-$VERSION.zip" \
-            --title "xTools $VERSION" --generate-notes --verify-tag
+          # 说明：安装步骤 + 自动生成的更新内容
+          cat scripts/release-notes.md > "$RUNNER_TEMP/notes.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body >> "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" "dist/xTools-$VERSION.dmg" "dist/xTools-$VERSION.zip" \
+            --title "xTools $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
 
       - name: 删除临时钥匙串
         if: always()
