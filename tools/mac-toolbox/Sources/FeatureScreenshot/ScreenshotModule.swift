@@ -18,12 +18,15 @@ public final class ScreenshotModule: ToolModule, CaptureService {
 
     private var settings: ScreenshotSettings? { store.map(ScreenshotSettings.init) }
 
+    /// 正在截屏、遮罩还没显示出来
+    private var isStartingCapture = false
+
     public init() {}
 
     public func menuItems() -> [NSMenuItem] {
-        let hotkey = settings?.captureHotkey?.displayName ?? ""
-        let item = NSMenuItem(title: "区域截图  \(hotkey)", action: #selector(menuCapture), keyEquivalent: "")
+        let item = NSMenuItem(title: "截图", action: #selector(menuCapture), keyEquivalent: "")
         item.target = self
+        item.setHotkey(settings?.captureHotkey)
         return [item]
     }
 
@@ -96,14 +99,18 @@ public final class ScreenshotModule: ToolModule, CaptureService {
 
     /// 开始一次截图；purpose 不为空时是只框选模式
     func beginCapture(purpose: CapturePurpose? = nil) {
-        guard session == nil, let context, let settings else { return }
+        // 截屏要零点几秒，期间 session 还没设上；用这个标记保证同一时间只开一个截图，
+        // 否则后开的会顶掉先开的，先开的遮罩没人管，Esc、右键都退不出
+        guard session == nil, !isStartingCapture, let context, let settings else { return }
         guard context.permissions.isGranted(.screenRecording) else {
             context.permissions.request(.screenRecording)
             return
         }
         // 先取窗口列表再截图，保证两者是同一时刻的状态
         let windows = ScreenCapturer.visibleWindows()
+        isStartingCapture = true
         Task { @MainActor [weak self] in
+            defer { self?.isStartingCapture = false }
             do {
                 let screens = try await ScreenCapturer.captureAllScreens(showsCursor: settings.captureCursor)
                 let shortcuts = ToolShortcuts(settings: settings.store)
@@ -112,6 +119,8 @@ public final class ScreenshotModule: ToolModule, CaptureService {
                     self?.handle(result, output: output)
                 }
                 self?.session = session
+                // 从托盘菜单打开时按的快捷键：屏幕已冻结（截到了菜单），这时再收起菜单
+                context.hotkeys.dismissOpenMenu()
                 session.show()
             } catch {
                 NSLog("[screenshot] 截屏失败：\(error)")

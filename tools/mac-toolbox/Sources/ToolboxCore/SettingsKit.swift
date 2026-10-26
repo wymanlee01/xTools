@@ -197,6 +197,7 @@ public final class HotkeyRecorderField: NSView {
 
     private func startRecording() {
         recording = true
+        HotkeyCenter.isRecordingShortcut = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.recording else { return event }
             switch Int(event.keyCode) {
@@ -218,6 +219,7 @@ public final class HotkeyRecorderField: NSView {
 
     private func stopRecording() {
         recording = false
+        HotkeyCenter.isRecordingShortcut = false
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
     }

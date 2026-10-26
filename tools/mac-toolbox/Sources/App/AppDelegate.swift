@@ -57,6 +57,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
     }
 
+    /// 菜单打开期间按快捷键也能直接执行（见 HotkeyCenter.watchKeys）
+    func menuWillOpen(_ menu: NSMenu) {
+        context?.hotkeys.watchKeys(whileOpen: menu)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        context?.hotkeys.stopWatchingKeys()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         for module in modules {

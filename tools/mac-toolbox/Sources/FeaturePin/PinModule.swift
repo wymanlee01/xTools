@@ -16,7 +16,9 @@ public final class PinModule: ToolModule {
 
     public func menuItems() -> [NSMenuItem] {
         // 菜单只留常用的一项；隐藏/显示全部贴图用快捷键，关闭全部在贴图右键菜单里
-        [makeItem("贴剪贴板到屏幕  \(settings?.pasteHotkey?.displayName ?? "")", #selector(pinPasteboard))]
+        let item = makeItem("贴图", #selector(pinPasteboard))
+        item.setHotkey(settings?.pasteHotkey)
+        return [item]
     }
 
     public func start(context: ToolContext) {

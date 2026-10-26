@@ -70,6 +70,15 @@ public struct Hotkey: Hashable, Sendable {
     }
 }
 
+extension NSMenuItem {
+    /// 托盘菜单项后面显示快捷键文字。不设 keyEquivalent：设了的话菜单打开时按这个键，
+    /// 系统会先收起菜单再执行，截图就截不到菜单了（菜单打开时的快捷键由 HotkeyCenter.watchKeys 处理）
+    public func setHotkey(_ hotkey: Hotkey?) {
+        guard let hotkey else { return }
+        title += "  \(hotkey.displayName)"
+    }
+}
+
 public enum HotkeyError: Error, Equatable {
     /// 应用内已有模块占用了这个快捷键
     case conflict(owner: String)
@@ -91,6 +100,23 @@ public final class HotkeyCenter {
     private var owners: [Hotkey: UInt32] = [:]
     private var nextId: UInt32 = 1
     private var handlerInstalled = false
+    /// 应用内按键监听（见 installHandlerIfNeeded）
+    private var localMonitor: Any?
+    /// 每个快捷键上次执行的时间：全局和应用内两条路可能同时收到同一次按键，0.3 秒内只执行一次
+    private var lastFired: [UInt32: Date] = [:]
+
+    /// 托盘菜单打开期间检查快捷键按键的定时器（见 watchKeys(whileOpen:)）
+    private var menuTimer: Timer?
+    /// 正打开着的托盘菜单
+    private weak var openMenu: NSMenu?
+    /// 菜单打开期间正按着的快捷键：只在刚按下时执行一次
+    private var menuKeysDown: Set<UInt32> = []
+    /// 菜单打开期间已执行过的快捷键和菜单关闭时间：菜单关闭时系统会补发积压的快捷键，要忽略
+    private var firedInMenu: Set<UInt32> = []
+    private var menuClosedAt = Date.distantPast
+
+    /// 设置页的快捷键录入框正在录键时为 true：这时按下的组合键是要录进去的，不当快捷键执行
+    public static var isRecordingShortcut = false
 
     public init() {}
 
@@ -123,7 +149,62 @@ public final class HotkeyCenter {
     }
 
     fileprivate func fire(id: UInt32) {
+        let now = Date()
+        if let last = lastFired[id], now.timeIntervalSince(last) < 0.3 { return }
+        if firedInMenu.contains(id), openMenu != nil || now.timeIntervalSince(menuClosedAt) < 0.5 { return }
+        lastFired[id] = now
         entries[id]?.action()
+    }
+
+    /// 托盘菜单打开时调用：菜单打开期间按键都被菜单拿走，全局快捷键要等菜单关了才送达。
+    /// 这里定时检查已注册的快捷键有没有按下，按下就直接执行，菜单还开着（截图能截到菜单）
+    public func watchKeys(whileOpen menu: NSMenu) {
+        stopWatchingKeys()
+        openMenu = menu
+        firedInMenu = []
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let down = self.pressedIds()
+                for id in down.subtracting(self.menuKeysDown) {
+                    self.fire(id: id)
+                    self.firedInMenu.insert(id)
+                }
+                self.menuKeysDown = down
+            }
+        }
+        // 菜单打开期间 RunLoop 处于 eventTracking 模式，加到 common 才会触发
+        RunLoop.main.add(timer, forMode: .common)
+        menuTimer = timer
+    }
+
+    /// 托盘菜单关闭时调用
+    public func stopWatchingKeys() {
+        menuTimer?.invalidate()
+        menuTimer = nil
+        if openMenu != nil { menuClosedAt = Date() }
+        openMenu = nil
+        menuKeysDown = []
+    }
+
+    /// 收起正打开着的托盘菜单（截图冻结完屏幕、要显示遮罩时调用）
+    public func dismissOpenMenu() {
+        openMenu?.cancelTracking()
+    }
+
+    /// 正被按住的已注册快捷键（按键和修饰键都对上）
+    private func pressedIds() -> Set<UInt32> {
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+        let pressed = flags.intersection([.command, .option, .control, .shift])
+        let ids = owners.compactMap { hotkey, id in
+            hotkey.modifiers == pressed && CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(hotkey.keyCode)) ? id : nil
+        }
+        return Set(ids)
+    }
+
+    /// 按键对应的已注册快捷键 id（修饰键只比较 ⌘⌥⌃⇧）
+    private func registeredId(for event: NSEvent) -> UInt32? {
+        owners[Hotkey(keyCode: Int(event.keyCode), modifiers: event.modifierFlags)]
     }
 
     /// 安装一次 Carbon 事件回调，按快捷键 id 分发
@@ -141,5 +222,14 @@ public final class HotkeyCenter {
             MainActor.assumeIsolated { center.fire(id: hotkeyId.id) }
             return noErr
         }, 1, &eventType, selfPtr, nil)
+
+        // xTools 自己的窗口拿着键盘时（偏好设置窗口、粘贴板这类不激活的浮动面板），
+        // 系统把按键直接发给窗口、不会当全局快捷键触发，所以在应用内再匹配一次
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, !Self.isRecordingShortcut, let id = self.registeredId(for: event) else { return event }
+            // 按住不放产生的重复按键吞掉、不重复执行（全局快捷键本身也不会重复触发）
+            if !event.isARepeat { self.fire(id: id) }
+            return nil
+        }
     }
 }

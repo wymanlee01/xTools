@@ -38,9 +38,3 @@ bin/
 
 # Swift
 .build/
-
-# .NET（tools/win-toolbox）
-bin/
-obj/
-publish/
-releases/
